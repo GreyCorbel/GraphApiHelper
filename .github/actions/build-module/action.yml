@@ -1,0 +1,19 @@
+name: Build PowerShell Module
+description: Compiles a PowerShell module by concatenating command files and updating the module manifest.
+
+inputs:
+  module-name:
+    description: Name of the module to build
+    required: true
+  root-path:
+    description: Root folder of the repository
+    required: false
+    default: ${{ github.workspace }}
+
+runs:
+  using: composite
+  steps:
+    - name: Build module
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}\BuildModule.ps1" -RootPath "${{ inputs.root-path }}" -ModuleName "${{ inputs.module-name }}"
