@@ -1,0 +1,97 @@
+
+name: Publish-GoogleAuthenticationFactory
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  # This workflow contains a single job called "publishToGallery"
+  publishToGallery:
+    # The type of runner that the job will run on
+    runs-on: windows-latest
+    env: 
+        MODULE_NAME: GraphHelper
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - uses: actions/checkout@v3
+    - uses: nuget/setup-nuget@v1
+      with:
+        nuget-version: 'latest'
+        
+    - name: Build Module
+      shell: pwsh
+      run: |
+        "Copying license file"
+        $moduleName = $env:MODULE_NAME
+        Copy-Item -Path "$env:GITHUB_WORKSPACE\LICENSE" -Destination "$env:GITHUB_WORKSPACE\Module\$moduleName\LICENSE.txt" -Force
+        "Building module"
+        &"$env:GITHUB_WORKSPACE\Workflow\BuildModule.ps1" -RootPath "$env:GITHUB_WORKSPACE" -ModuleName $moduleName
+
+    - name: Install AzureSignTool
+      shell: pwsh
+      run: |
+        dotnet tool install --global AzureSignTool
+  
+    - name: Sign files
+      shell: pwsh
+      run: |
+        $files = Get-ChildItem "$env:GITHUB_WORKSPACE\Module\$env:MODULE_NAME" -File -Recurse -Include *.ps1, *.ps1xml, *.psd1, *.psm1, *.pssc, *.psrc, *.cdxml
+        try {
+            foreach ($file in $files) {
+                azuresigntool sign `
+                    -kvu ${{ vars.CODESIGNING_KEYVAULTURI }} `
+                    -kvi ${{ vars.TENANTINTEGRATION_CLIENTID }} `
+                    -kvt ${{ vars.TENANTINTEGRATION_TENANTID }} `
+                    -kvs ${{ secrets.TENANTINTEGRATION_CLIENTSECRET }} `
+                    -kvc ${{ vars.CODESIGNING_CERTNAME }} `
+                    -tr 'http://timestamp.digicert.com' `
+                    -v "$($file.FullName)" 
+            }
+        }
+        catch {
+            Write-Host "Error: $($_.Exception)"
+            throw
+        }
+        Write-Host "Signed files summary:"
+        Get-AuthenticodeSignature -FilePath $files
+
+    - name: Publish
+      #Publish to PS Gallery
+      shell: pwsh
+      if: ${{ github.event_name != 'workflow_dispatch' }}
+      env:
+        SECRET: ${{ secrets.GC_PSGALLERY_APIKEY }}
+      run: |
+        write-host "Publishing from: $env:GITHUB_WORKSPACE\Module\$env:MODULE_NAME"
+        try
+        {
+          Get-PsResourceRepository | Out-Null
+          $env:PSModulePath = "$env:PSModulePath;$env:GITHUB_WORKSPACE\Module"
+          "PSModulePath: $env:PSModulePath"
+          Publish-Module -Path "$env:GITHUB_WORKSPACE\Module\$env:MODULE_NAME" -NuGetApiKey "$env:SECRET"
+        }
+        catch
+        {
+          Write-Host "Error: $($_.Exception)"
+          throw
+        }
+
+    - name: Create Release
+      #Create a release
+      id: create_release
+      if: ${{ github.event_name != 'workflow_dispatch' }}
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref }}
+        draft: false
+        token: ${{ secrets.GITHUB_TOKEN }}
+        prerelease: false
+        name: Release ${{ github.ref }}   
