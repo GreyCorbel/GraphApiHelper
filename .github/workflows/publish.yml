@@ -33,7 +33,7 @@ jobs:
         Copy-Item -Path "$env:GITHUB_WORKSPACE\LICENSE" -Destination "$env:GITHUB_WORKSPACE\Module\$moduleName\LICENSE.txt" -Force
 
     - name: Build Module
-      uses: ./.github/actions/build-module
+      uses: GreyCorbel/PsModuleActions/build-module@v1
       with:
         module-name: ${{ env.MODULE_NAME }}
 
