@@ -1,5 +1,5 @@
 
-name: Publish-GoogleAuthenticationFactory
+name: Publish-GraphHelper
 on:
   push:
     branches:
