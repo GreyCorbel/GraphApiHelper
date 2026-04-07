@@ -340,7 +340,7 @@ function Invoke-GraphWithRetry
             $headers['Authorization'] = $authHeader['Authorization']
             $resultCode = 'Ok'
             try {
-                $requestStart = Get-Date -AsUTC
+                $requestStart = [DateTime]::UtcNow
 
                 switch($method)
                {
