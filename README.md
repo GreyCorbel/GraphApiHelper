@@ -1,4 +1,4 @@
-# GraphHelper
+# GraphApiHelper
 
 PowerShell module that provides a robust, production-ready wrapper around the Microsoft Graph API. It handles authentication token acquisition, automatic pagination, throttling retries, large file uploads, and optional Application Insights telemetry — so callers can focus on business logic rather than HTTP plumbing.
 
@@ -14,20 +14,20 @@ Install dependencies from the PowerShell Gallery before using this module:
 ```powershell
 Install-Module -Name AadAuthenticationFactory
 Install-Module -Name AiLogger          # optional, only needed for telemetry
-Install-Module -Name GraphHelper
+Install-Module -Name GraphApiHelper
 ```
 
 ## Quick Start
 
 ### 1. Configure authentication
 
-Use `AadAuthenticationFactory` to create and register an authentication factory, then point `GraphHelper` at it:
+Use `AadAuthenticationFactory` to create and register an authentication factory, then point `GraphApiHelper` at it:
 
 ```powershell
 # Create a factory that uses a managed identity (e.g. in Azure Automation / Azure Functions)
 New-AadAuthenticationFactory -Name 'ManagedIdentity' -UseManagedIdentity
 
-# Tell GraphHelper which factory to use
+# Tell GraphApiHelper which factory to use
 Set-GraphAadFactory -Name 'ManagedIdentity'
 ```
 
@@ -38,7 +38,7 @@ Set-GraphAadFactory -Name 'ManagedIdentity'
 Get-GraphData -RequestUri '/users/john.doe@contoso.com'
 
 # Retrieve all users — automatically pages through all result pages
-$users = Get-GraphData -RequestUri '/users?$select=displayName,userPrincipalName,mail'
+$users = Get-GraphData -Uri '/users' -WithSelect 'displayName,userPrincipalName,mail'
 $users | Select-Object displayName, mail
 ```
 
@@ -98,10 +98,47 @@ Issues a GET request and **automatically follows all `@odata.nextLink` pages**, 
 # All members of a group (handles pages transparently)
 $members = Get-GraphData -RequestUri "/groups/$groupId/members"
 
-# Advanced query with ConsistencyLevel header
+# Query options via Get-GraphData parameters
 $guests = Get-GraphData `
-    -RequestUri '/users?$filter=userType eq ''Guest''&$count=true' `
-    -AdditionalHeaders @{ ConsistencyLevel = 'eventual' }
+    -RequestUri '/users' `
+    -WithSelect 'id,displayName,userPrincipalName' `
+    -WithFilter "userType eq 'Guest'" `
+    -WithCount `
+    -WithExpand 'manager($select=id,displayName)' `
+    -WithSearch '"displayName:alex"' `
+    -Top 25
+
+# Retrieve only the first page even when @odata.nextLink is present
+$firstPage = Get-GraphData -RequestUri '/users' -Top 10 -NoContinue
+```
+
+### `New-GrapUri`
+Builds a request URL using the same query option parameters as `Get-GraphData`, without sending a request. Use `-Relative` when you need a batch subrequest URL.
+
+```powershell
+$url = New-GrapUri `
+    -Uri '/users' `
+    -WithSelect 'id,displayName,userPrincipalName' `
+    -WithFilter "userType eq 'Guest'" `
+    -WithCount `
+    -Top 25
+
+$url
+
+$batchUrl = New-GrapUri `
+    -Uri '/users' `
+    -WithSelect 'id,displayName' `
+    -Top 5 `
+    -Relative
+
+# Absolute URI with -Relative extracts just the path (useful if you have full URLs from logs)
+$batchUrl2 = New-GrapUri `
+    -Uri 'https://graph.microsoft.com/v1.0/users' `
+    -WithSelect 'id,displayName' `
+    -Top 5 `
+    -Relative
+
+# $batchUrl and $batchUrl2 are equivalent: /users?$select=id,displayName&$top=5
 ```
 
 ### `Invoke-GraphWithRetry`
@@ -110,13 +147,39 @@ Issues any HTTP method against Graph. Automatically retries on **HTTP 429 (throt
 ```powershell
 # Send a Teams chat message
 $body = @{
-    body = @{ content = 'Hello from GraphHelper!' }
+    body = @{ content = 'Hello from GraphApiHelper!' }
 } | ConvertTo-Json -Depth 5
 
 Invoke-GraphWithRetry `
     -RequestUri "/chats/$chatId/messages" `
     -Method Post `
     -Body $body
+```
+
+### `Invoke-GraphBatch`
+Collects multiple Graph request definitions, sends a single `/$batch` call via `Invoke-GraphWithRetry`, and returns individual batch response items.
+
+Microsoft Graph limits each batch to 20 subrequests.
+
+```powershell
+$requests = @(
+    New-GraphBatchRequest -Id '1' -Method GET -Url '/me'
+    New-GraphBatchRequest -Id '2' -Method GET -Url (New-GrapUri -Uri '/users' -Top 5 -Relative)
+    New-GraphBatchRequest -Id '3' -Method PATCH -Url '/users/john.doe@contoso.com' -Body @{ jobTitle = 'Principal Engineer' }
+)
+
+$responses = Invoke-GraphBatch -BatchRequest $requests
+$responses | Select-Object id, status
+```
+
+### `New-GraphBatchRequest`
+Creates a structured Graph batch subrequest object to pass to `Invoke-GraphBatch`. The `-Id` parameter is required.
+
+```powershell
+$req1 = New-GraphBatchRequest -Id '1' -Method GET -Url '/users?$top=5'
+$req2 = New-GraphBatchRequest -Id '2' -Method GET -Url '/groups?$top=5' -DependsOn '1'
+
+Invoke-GraphBatch -BatchRequest @($req1, $req2)
 ```
 
 ### `Add-GraphLargeFile`
@@ -154,6 +217,6 @@ Set-GraphAiLogger -Logger $logger
 ## Notes
 
 - **Relative URIs** are supported everywhere — the configured `BaseUri` is automatically prepended to any path that does not start with `http`.
-- **Pagination** is handled transparently by `Get-GraphData`. Use `Invoke-GraphWithRetry` when you need only a single page.
+- **Pagination** is handled transparently by `Get-GraphData`. Use `Get-GraphData -NoContinue`, or `Invoke-GraphWithRetry` when you need only a single page.
 - **Throttle protection** — `Invoke-GraphWithRetry` honours the `Retry-After` response header and backs off accordingly.
 - Only **PowerShell Core** (`CompatiblePSEditions = Core`) is supported.

@@ -51,7 +51,7 @@ function Add-GraphLargeFile
     begin
     {
         $chunkSize = 320KB * 16 # 5MB chunks
-        $graphUri = GetGraphRequestUri -Uri "$GraphFilePath"
+        $graphUri = New-GrapUri -Uri "$GraphFilePath"
     }
     process
     {

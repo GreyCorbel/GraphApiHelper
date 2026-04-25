@@ -52,7 +52,7 @@ function Add-GraphLargeFile
     begin
     {
         $chunkSize = 320KB * 16 # 5MB chunks
-        $graphUri = GetGraphRequestUri -Uri "$GraphFilePath"
+        $graphUri = New-GrapUri -Uri "$GraphFilePath"
     }
     process
     {
@@ -145,6 +145,7 @@ function Get-GraphAuthorizationHeader
 }
 function Get-GraphData
 {
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
     <#
     .SYNOPSIS
     Retrieves data from Microsoft Graph API with automatic pagination
@@ -159,12 +160,38 @@ function Get-GraphData
     .PARAMETER RequestUri
     The complete Microsoft Graph API request URL including query parameters.
     Example: 'https://graph.microsoft.com/v1.0/users'
+
+    .PARAMETER WithSelect
+    Optional value for the $select query option.
+    Example: 'id,displayName,userPrincipalName'
+
+    .PARAMETER WithFilter
+    Optional value for the $filter query option.
+    Example: "accountEnabled eq true"
+
+    .PARAMETER WithCount
+    Adds $count=true to the request.
+
+    .PARAMETER WithExpand
+    Optional value for the $expand query option.
+
+    .PARAMETER WithSearch
+    Optional value for the $search query option.
+
+    .PARAMETER Top
+    Optional value for the $top query option.
+
+    .PARAMETER Skip
+    Optional value for the $skip query option.
     
     .PARAMETER OperationName
     The operation name to use for Application Insights logging. Default is 'Get-GraphData'.
 
     .PARAMETER AdditionalHeaders
     Additional HTTP headers to include in requests (for example ConsistencyLevel for advanced queries).
+
+    .PARAMETER NoContinue
+    When specified, retrieves only the first page and does not follow @odata.nextLink.
     
     .OUTPUTS
     System.Object[]
@@ -184,12 +211,23 @@ function Get-GraphData
     Get-GraphData -RequestUri 'https://graph.microsoft.com/v1.0/me/messages?$top=50' -OperationName 'GetUserMessages'
     
     Retrieves all messages for the current user with custom operation name for Application Insights tracking.
+
+    .EXAMPLE
+    Get-GraphData -RequestUri 'https://graph.microsoft.com/v1.0/users' -WithSelect 'id,displayName' -WithFilter "startswith(displayName,'A')" -WithCount -AdditionalHeaders @{ ConsistencyLevel = 'eventual' }
+
+    Retrieves users with query options built from parameters and the required advanced query header.
+
+    .EXAMPLE
+    Get-GraphData -RequestUri 'https://graph.microsoft.com/v1.0/users' -WhatIf
+
+    Shows what request would be executed without calling Microsoft Graph.
     
     .NOTES
     - Automatically handles pagination via @odata.nextLink
     - Uses Invoke-GraphWithRetry internally for throttling protection
     - Suitable for large datasets that span multiple pages
     - Uses the authentication factory configured via Set-GraphAadFactory
+    - Supports -WhatIf and -Confirm via ShouldProcess
     #>
     param
     (
@@ -197,19 +235,41 @@ function Get-GraphData
         [Alias('Uri')]
         [string]$RequestUri,
         [Parameter()]
-        $OperationName = 'Get-GraphData',
+        [string]$WithSelect,
         [Parameter()]
-        [System.Collections.Hashtable]$AdditionalHeaders = @{}
+        [string]$WithFilter,
+        [Parameter()]
+        [switch]$WithCount,
+        [Parameter()]
+        [string]$WithExpand,
+        [Parameter()]
+        [string]$WithSearch,
+        [Parameter()]
+        [Nullable[int]]$Top,
+        [Parameter()]
+        [Nullable[int]]$Skip,
+        [Parameter()]
+        [string]$OperationName = 'Get-GraphData',
+        [Parameter()]
+        [System.Collections.Hashtable]$AdditionalHeaders = @{},
+        [Parameter()]
+        [switch]$NoContinue
     )
 
     process
     {
-        $uri = GetGraphRequestUri $RequestUri
+        $uri = New-GrapUri -Uri $RequestUri -WithSelect $WithSelect -WithFilter $WithFilter -WithCount:$WithCount -WithExpand $WithExpand -WithSearch $WithSearch -Top $Top -Skip $Skip
+
+        if (-not $PSCmdlet.ShouldProcess($uri, 'Get Microsoft Graph data with automatic pagination'))
+        {
+            return
+        }
+
         while($true)
         {
             try {
                 #get page of results
-                $result = Invoke-GraphWithRetry -RequestUri $uri -method Get -Headers $AdditionalHeaders -ErrorAction Stop
+                $result = Invoke-GraphWithRetry -RequestUri $uri -method Get -Headers $AdditionalHeaders -OperationName $OperationName -Confirm:$false -ErrorAction Stop
                 if($null -ne $result.value)
                 {
                     #returning array of results
@@ -221,9 +281,9 @@ function Get-GraphData
                     $result
                 }
                 $uri = $result.'@odata.nextLink'
-                if([string]::IsNullOrEmpty($uri))
+                if([string]::IsNullOrEmpty($uri) -or $NoContinue)
                 {
-                    #no more pages
+                    #no more pages or we just wanted first page
                     break;
                 }
             }
@@ -234,8 +294,184 @@ function Get-GraphData
         }
     }
 }
+function Invoke-GraphBatch
+{
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
+    <#
+    .SYNOPSIS
+    Sends a Microsoft Graph batch request.
+
+    .DESCRIPTION
+    Collects one or more batch request definitions, builds the Graph $batch payload,
+    sends it through Invoke-GraphWithRetry, and returns batch response items.
+
+    .PARAMETER BatchRequest
+    One or more Graph batch request objects created by New-GraphBatchRequest.
+
+    .PARAMETER RequestHeaders
+    Additional HTTP headers for the outer $batch request.
+
+    .PARAMETER OperationName
+    The operation name to use for Application Insights logging. Default is 'Invoke-GraphBatch'.
+
+    .OUTPUTS
+    System.Object[]
+    Returns response items from the Graph batch response.
+
+    .EXAMPLE
+    $requests = @(
+        New-GraphBatchRequest -Id '1' -Method GET -Url '/me'
+        New-GraphBatchRequest -Id '2' -Method GET -Url (New-GrapUri -Uri '/users' -Top 5 -Relative)
+        New-GraphBatchRequest -Id '3' -Method POST -Url '/groups' -Body @{ displayName = 'Batch Group'; mailEnabled = $false; mailNickname = 'batch-group'; securityEnabled = $true }
+    )
+
+    Invoke-GraphBatch -BatchRequest $requests
+
+    Sends three Graph API requests in one batch and returns the response items. Use New-GrapUri with -Relative to build query strings cleanly.
+
+    .EXAMPLE
+    @(
+        New-GraphBatchRequest -Id '1' -Method GET -Url '/me'
+        New-GraphBatchRequest -Id '2' -Method GET -Url '/organization'
+    ) | Invoke-GraphBatch
+
+    Sends request definitions from the pipeline.
+
+    .NOTES
+    - Uses Invoke-GraphWithRetry internally for reliability.
+    - Sends to the /$batch endpoint under the configured BaseUri.
+    - Microsoft Graph batch requests support up to 20 subrequests per batch.
+    #>
+    param
+    (
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [Alias('Requests')]
+        [PSCustomObject[]]$BatchRequest,
+        [Parameter()]
+        [System.Collections.Hashtable]$RequestHeaders = @{},
+        [Parameter()]
+        [string]$OperationName = 'Invoke-GraphBatch'
+    )
+
+    begin
+    {
+        $requests = [System.Collections.Generic.List[hashtable]]::new()
+        $ids = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    }
+
+    process
+    {
+        foreach ($item in $BatchRequest)
+        {
+            if ($null -eq $item)
+            {
+                continue
+            }
+
+            $propertyNames = $item.PSObject.Properties.Name
+            if ('id' -notin $propertyNames -or 'method' -notin $propertyNames -or 'url' -notin $propertyNames)
+            {
+                throw 'Each batch request must include id, method, and url properties. Use New-GraphBatchRequest to create requests.'
+            }
+
+            $id = [string]$item.id
+            $method = [string]$item.method
+            $url = [string]$item.url
+
+            if ([string]::IsNullOrWhiteSpace($id) -or [string]::IsNullOrWhiteSpace($method) -or [string]::IsNullOrWhiteSpace($url))
+            {
+                throw 'Each batch request must include non-empty id, method, and url values.'
+            }
+
+            if (-not $ids.Add($id))
+            {
+                throw "Duplicate batch request id '$id' is not allowed."
+            }
+
+            $normalizedRequest = [ordered]@{
+                id = [string]$id
+                method = [string]$method.ToUpperInvariant()
+                url = [string]$url
+            }
+
+            $headers = @{}
+            $providedHeaders = $item.headers
+            if ($null -ne $providedHeaders)
+            {
+                foreach ($key in $providedHeaders.Keys)
+                {
+                    $headers[$key] = $providedHeaders[$key]
+                }
+            }
+
+            $bodyWasProvided = $false
+            if ('body' -in $propertyNames)
+            {
+                $normalizedRequest.body = $item.body
+                $bodyWasProvided = $true
+            }
+
+            if ($bodyWasProvided -and -not $headers.ContainsKey('Content-Type'))
+            {
+                $headers['Content-Type'] = 'application/json'
+            }
+
+            if ($headers.Count -gt 0)
+            {
+                $normalizedRequest.headers = $headers
+            }
+
+            if ('dependsOn' -in $propertyNames -and $null -ne $item.dependsOn -and $item.dependsOn.Count -gt 0)
+            {
+                $normalizedRequest.dependsOn = $item.dependsOn
+            }
+
+            [void]$requests.Add($normalizedRequest)
+        }
+    }
+
+    end
+    {
+        if ($requests.Count -eq 0)
+        {
+            Write-Warning 'No batch requests were provided.'
+            return
+        }
+
+        if ($requests.Count -gt 20)
+        {
+            throw "Microsoft Graph batch requests support a maximum of 20 subrequests per batch. Received $($requests.Count)."
+        }
+
+        $batchUri = New-GrapUri -Uri '/$batch'
+        if (-not $PSCmdlet.ShouldProcess($batchUri, "Post Microsoft Graph batch request with $($requests.Count) subrequests"))
+        {
+            return
+        }
+
+        $payload = @{ requests = $requests }
+        $result = Invoke-GraphWithRetry `
+            -RequestUri '/$batch' `
+            -Method Post `
+            -Body ($payload | ConvertTo-Json -Depth 20) `
+            -ContentType 'application/json' `
+            -Headers $RequestHeaders `
+            -OperationName $OperationName `
+            -Confirm:$false
+
+        if ($null -ne $result.responses)
+        {
+            $result.responses
+        }
+        else
+        {
+            $result
+        }
+    }
+}
 function Invoke-GraphWithRetry
 {
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     <#
     .SYNOPSIS
     Invokes a Graph API with automatic retry logic for throttling
@@ -295,12 +531,18 @@ function Invoke-GraphWithRetry
     Invoke-GraphWithRetry -RequestUri 'https://graph.microsoft.com/v1.0/users/user@domain.com' -Method Delete
     
     Deletes a user from Microsoft Graph.
+
+    .EXAMPLE
+    Invoke-GraphWithRetry -RequestUri 'https://graph.microsoft.com/v1.0/users/user@domain.com' -Method Delete -WhatIf
+
+    Shows what delete request would run without calling Microsoft Graph.
     
     .NOTES
     - Automatically handles HTTP 429 throttling with exponential backoff
     - Maximum retry attempts: 100
     - Uses the authentication factory configured via Set-GraphAadFactory
     - Supports Application Insights telemetry when configured
+    - Supports -WhatIf and -Confirm via ShouldProcess
     #>
     param
     (
@@ -308,6 +550,7 @@ function Invoke-GraphWithRetry
         [Alias('Uri')]
         [string]$RequestUri,
         [Parameter()]
+        [ValidateSet('Get', 'Post', 'Put', 'Patch', 'Delete')]
         $method = 'Get',
         [Parameter()]
         $body,
@@ -329,10 +572,15 @@ function Invoke-GraphWithRetry
     begin
     {
         $retries = 0
-        $graphUri = GetGraphRequestUri -Uri $RequestUri
+        $graphUri = New-GrapUri -Uri $RequestUri
     }
     process
     {
+        if (-not $PSCmdlet.ShouldProcess($graphUri, "$method Microsoft Graph request"))
+        {
+            return
+        }
+
         do
         {
             $authHeader = Get-GraphAuthorizationHeader
@@ -410,19 +658,281 @@ function Invoke-GraphWithRetry
         }while($true)
     }
 }
+function New-GraphBatchRequest
+{
+    <#
+    .SYNOPSIS
+    Creates a Microsoft Graph batch request item.
+
+    .DESCRIPTION
+    Builds a normalized request object suitable for Invoke-GraphBatch and Graph /$batch payloads.
+
+    .PARAMETER Method
+    HTTP method for the subrequest. Allowed values: GET, POST, PUT, PATCH, DELETE.
+
+    .PARAMETER Url
+    Relative Graph URL for the subrequest.
+    Example: '/me' or '/users?$top=5'.
+
+    .PARAMETER Id
+    Request identifier. This value is required by Graph batch requests.
+
+    .PARAMETER Headers
+    Optional headers for this subrequest.
+    When Body is provided and Content-Type is not set, application/json is used.
+
+    .PARAMETER Body
+    Optional body for POST, PUT, or PATCH requests.
+
+    .PARAMETER DependsOn
+    Optional list of request IDs this request depends on.
+
+    .OUTPUTS
+    System.Management.Automation.PSCustomObject
+    Returns a batch request object.
+
+    .EXAMPLE
+    New-GraphBatchRequest -Method GET -Url '/me' -Id '1'
+
+    Creates a batch request item that gets the signed-in user profile.
+
+    .EXAMPLE
+    New-GraphBatchRequest -Id '2' -Method PATCH -Url '/users/john.doe@contoso.com' -Body @{ jobTitle = 'Principal Engineer' }
+
+    Creates a batch request item that updates a user.
+    #>
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory)]
+        [ValidateSet('GET', 'POST', 'PUT', 'PATCH', 'DELETE')]
+        [string]$Method,
+        [Parameter(Mandatory)]
+        [string]$Url,
+        [Parameter(Mandatory)]
+        [string]$Id,
+        [Parameter()]
+        [System.Collections.Hashtable]$Headers,
+        [Parameter()]
+        [AllowNull()]
+        $Body,
+        [Parameter()]
+        [string[]]$DependsOn
+    )
+
+    process
+    {
+        if ([string]::IsNullOrWhiteSpace($Url))
+        {
+            throw 'Url cannot be empty.'
+        }
+
+        if ($Url.StartsWith('http', [System.StringComparison]::OrdinalIgnoreCase))
+        {
+            throw 'Url must be a relative Graph path for batch requests (for example /me or /users?$top=5).'
+        }
+
+        $request = [ordered]@{
+            method = $Method.ToUpperInvariant()
+            url = $Url
+        }
+
+        if ([string]::IsNullOrWhiteSpace($Id))
+        {
+            throw 'Id cannot be empty.'
+        }
+        $request.id = $Id
+
+        $resolvedHeaders = @{}
+        if ($null -ne $Headers)
+        {
+            foreach ($key in $Headers.Keys)
+            {
+                $resolvedHeaders[$key] = $Headers[$key]
+            }
+        }
+
+        if ($PSBoundParameters.ContainsKey('Body'))
+        {
+            $request.body = $Body
+
+            if (-not $resolvedHeaders.ContainsKey('Content-Type'))
+            {
+                $resolvedHeaders['Content-Type'] = 'application/json'
+            }
+        }
+
+        if ($resolvedHeaders.Count -gt 0)
+        {
+            $request.headers = $resolvedHeaders
+        }
+
+        if ($null -ne $DependsOn -and $DependsOn.Count -gt 0)
+        {
+            $request.dependsOn = $DependsOn
+        }
+
+        $requestObject = [PSCustomObject]$request
+        $requestObject.PSTypeNames.Insert(0, 'GraphApiHelper.GraphBatchRequest')
+        $requestObject
+    }
+}
+function New-GrapUri
+{
+    <#
+    .SYNOPSIS
+    Builds a Microsoft Graph request URL.
+
+    .DESCRIPTION
+    Returns a Microsoft Graph request URL using the same query option parameters as Get-GraphData,
+    without sending a request.
+
+    .PARAMETER Uri
+    The base Microsoft Graph request URL or relative path.
+
+    .PARAMETER WithSelect
+    Optional value for the $select query option.
+
+    .PARAMETER WithFilter
+    Optional value for the $filter query option.
+
+    .PARAMETER WithCount
+    Adds $count=true to the request.
+
+    .PARAMETER WithExpand
+    Optional value for the $expand query option.
+
+    .PARAMETER WithSearch
+    Optional value for the $search query option.
+
+    .PARAMETER Top
+    Optional value for the $top query option.
+
+    .PARAMETER Skip
+    Optional value for the $skip query option.
+
+    .PARAMETER Relative
+    Returns a relative Graph path instead of prepending the configured BaseUri.
+    Use this when building batch request URLs.
+
+    .OUTPUTS
+    System.String
+    Returns the fully constructed request URL.
+    #>
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory)]
+        [string]$Uri,
+        [Parameter()]
+        [string]$WithSelect,
+        [Parameter()]
+        [string]$WithFilter,
+        [Parameter()]
+        [switch]$WithCount,
+        [Parameter()]
+        [string]$WithExpand,
+        [Parameter()]
+        [string]$WithSearch,
+        [Parameter()]
+        [Nullable[int]]$Top,
+        [Parameter()]
+        [Nullable[int]]$Skip,
+        [Parameter()]
+        [switch]$Relative
+    )
+
+    process
+    {
+        if ($Uri.StartsWith('http'))
+        {
+            if ($Relative)
+            {
+                # Extract relative path from absolute URI
+                $parsedUri = [System.Uri]::new($Uri)
+                $Uri = $parsedUri.PathAndQuery
+                if ([string]::IsNullOrEmpty($Uri))
+                {
+                    $Uri = '/'
+                }
+            }
+            # else: Uri is already absolute, use as-is
+        }
+        else
+        {
+            # Uri is relative
+            if (-not $Relative)
+            {
+                # Prepend BaseUri
+                if(-not $script:graphConnection.BaseUri)
+                {
+                    throw "BaseUri is not set. Please call Set-GraphBaseUri first or provide a full Uri"
+                }
+                $Uri = "$($script:graphConnection.BaseUri.TrimEnd('/'))/$($Uri.TrimStart('/'))"
+            }
+            # else: Uri is already relative, use as-is
+        }
+
+        $queryParams = [System.Collections.Generic.List[string]]::new()
+        if(-not [string]::IsNullOrEmpty($WithSelect))
+        {
+            $queryParams.Add("`$select=$WithSelect")
+        }
+        if(-not [string]::IsNullOrEmpty($WithFilter))
+        {
+            $queryParams.Add("`$filter=$WithFilter")
+        }
+        if($WithCount)
+        {
+            $queryParams.Add('$count=true')
+        }
+        if(-not [string]::IsNullOrEmpty($WithExpand))
+        {
+            $queryParams.Add("`$expand=$WithExpand")
+        }
+        if(-not [string]::IsNullOrEmpty($WithSearch))
+        {
+            $queryParams.Add("`$search=`"$WithSearch`"")
+        }
+        if($null -ne $Top)
+        {
+            $queryParams.Add("`$top=$Top")
+        }
+        if($null -ne $Skip)
+        {
+            $queryParams.Add("`$skip=$Skip")
+        }
+
+        if($queryParams.Count -gt 0)
+        {
+            $separator = if($Uri.Contains('?')) { '&' } else { '?' }
+            $Uri = $Uri + $separator + ($queryParams -join '&')
+        }
+
+        return $Uri
+    }
+}
 function Set-GraphAadFactory
 {
     <#
     .SYNOPSIS
-    Sets the AAD authentication factory name for Graph API operations
+    Sets the AAD authentication factory for Graph API operations
     
     .DESCRIPTION
     Configures the authentication factory to be used for obtaining access tokens when making Graph API calls.
     The factory name corresponds to a factory registered with the AadAuthenticationFactory module.
+    By default, the command validates that the factory exists before updating module state.
     
     .PARAMETER Name
     The name of the authentication factory to use. This should match a factory registered with AadAuthenticationFactory module.
     Common values include 'ManagedIdentityFactory' or custom factory names.
+
+    .PARAMETER Force
+    Skips validation that the specified factory exists and sets the value directly.
+
+    .OUTPUTS
+    None
+    This command updates module configuration and does not return an object.
     
     .EXAMPLE
     Set-GraphAadFactory -Name 'ManagedIdentityFactory'
@@ -433,15 +943,29 @@ function Set-GraphAadFactory
     Set-GraphAadFactory -Name 'MyCustomFactory'
     
     Configures the module to use a custom authentication factory.
+
+    .EXAMPLE
+    Set-GraphAadFactory -Name 'FactoryRegisteredLater' -Force
+
+    Sets the factory name without validating its current registration.
+
+    .NOTES
+    - When -Force is not specified, the command throws if the factory cannot be found.
+    - The configured value is used by subsequent GraphApiHelper commands that request tokens.
     #>
     param
     (
         [Parameter(Mandatory)]
-        [string]$Name
+        [string]$Name,
+        [switch]$Force
     )
 
     process
     {
+        if($null -eq (Get-AadAuthenticationFactory -Name $Name) -and -not $Force)
+        {
+            throw "Authentication factory '$Name' not found. Please register it with the AadAuthenticationFactory module before using."
+        }
         $script:graphConnection.FactoryName = $Name
     }
 }
@@ -545,30 +1069,6 @@ function Set-GraphScopes
 }
 #endregion Public commands
 #region Internal commands
-function GetGraphRequestUri
-{
-    param
-    (
-        [Parameter(Mandatory)]
-        [string]$Uri
-    )
-
-    process
-    {
-        if(-not $uri.StartsWith('http'))
-        {
-            if(-not $script:graphConnection.BaseUri)
-            {
-                throw "BaseUri is not set. Please call Set-GraphBaseUri first or provide a full Uri"
-            }
-            return "$($script:graphConnection.BaseUri.TrimEnd('/'))/$($uri.TrimStart('/'))"
-        }
-        else
-        {
-            return $uri
-        }
-    }
-}
 #endregion Internal commands
 #region Module initialization
 $script:graphConnection = [PSCustomObject]@{

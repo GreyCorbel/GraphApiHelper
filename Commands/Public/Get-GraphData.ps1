@@ -1,5 +1,6 @@
 function Get-GraphData
 {
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
     <#
     .SYNOPSIS
     Retrieves data from Microsoft Graph API with automatic pagination
@@ -14,12 +15,38 @@ function Get-GraphData
     .PARAMETER RequestUri
     The complete Microsoft Graph API request URL including query parameters.
     Example: 'https://graph.microsoft.com/v1.0/users'
+
+    .PARAMETER WithSelect
+    Optional value for the $select query option.
+    Example: 'id,displayName,userPrincipalName'
+
+    .PARAMETER WithFilter
+    Optional value for the $filter query option.
+    Example: "accountEnabled eq true"
+
+    .PARAMETER WithCount
+    Adds $count=true to the request.
+
+    .PARAMETER WithExpand
+    Optional value for the $expand query option.
+
+    .PARAMETER WithSearch
+    Optional value for the $search query option.
+
+    .PARAMETER Top
+    Optional value for the $top query option.
+
+    .PARAMETER Skip
+    Optional value for the $skip query option.
     
     .PARAMETER OperationName
     The operation name to use for Application Insights logging. Default is 'Get-GraphData'.
 
     .PARAMETER AdditionalHeaders
     Additional HTTP headers to include in requests (for example ConsistencyLevel for advanced queries).
+
+    .PARAMETER NoContinue
+    When specified, retrieves only the first page and does not follow @odata.nextLink.
     
     .OUTPUTS
     System.Object[]
@@ -39,12 +66,23 @@ function Get-GraphData
     Get-GraphData -RequestUri 'https://graph.microsoft.com/v1.0/me/messages?$top=50' -OperationName 'GetUserMessages'
     
     Retrieves all messages for the current user with custom operation name for Application Insights tracking.
+
+    .EXAMPLE
+    Get-GraphData -RequestUri 'https://graph.microsoft.com/v1.0/users' -WithSelect 'id,displayName' -WithFilter "startswith(displayName,'A')" -WithCount -AdditionalHeaders @{ ConsistencyLevel = 'eventual' }
+
+    Retrieves users with query options built from parameters and the required advanced query header.
+
+    .EXAMPLE
+    Get-GraphData -RequestUri 'https://graph.microsoft.com/v1.0/users' -WhatIf
+
+    Shows what request would be executed without calling Microsoft Graph.
     
     .NOTES
     - Automatically handles pagination via @odata.nextLink
     - Uses Invoke-GraphWithRetry internally for throttling protection
     - Suitable for large datasets that span multiple pages
     - Uses the authentication factory configured via Set-GraphAadFactory
+    - Supports -WhatIf and -Confirm via ShouldProcess
     #>
     param
     (
@@ -52,19 +90,41 @@ function Get-GraphData
         [Alias('Uri')]
         [string]$RequestUri,
         [Parameter()]
-        $OperationName = 'Get-GraphData',
+        [string]$WithSelect,
         [Parameter()]
-        [System.Collections.Hashtable]$AdditionalHeaders = @{}
+        [string]$WithFilter,
+        [Parameter()]
+        [switch]$WithCount,
+        [Parameter()]
+        [string]$WithExpand,
+        [Parameter()]
+        [string]$WithSearch,
+        [Parameter()]
+        [Nullable[int]]$Top,
+        [Parameter()]
+        [Nullable[int]]$Skip,
+        [Parameter()]
+        [string]$OperationName = 'Get-GraphData',
+        [Parameter()]
+        [System.Collections.Hashtable]$AdditionalHeaders = @{},
+        [Parameter()]
+        [switch]$NoContinue
     )
 
     process
     {
-        $uri = GetGraphRequestUri $RequestUri
+        $uri = New-GrapUri -Uri $RequestUri -WithSelect $WithSelect -WithFilter $WithFilter -WithCount:$WithCount -WithExpand $WithExpand -WithSearch $WithSearch -Top $Top -Skip $Skip
+
+        if (-not $PSCmdlet.ShouldProcess($uri, 'Get Microsoft Graph data with automatic pagination'))
+        {
+            return
+        }
+
         while($true)
         {
             try {
                 #get page of results
-                $result = Invoke-GraphWithRetry -RequestUri $uri -method Get -Headers $AdditionalHeaders -ErrorAction Stop
+                $result = Invoke-GraphWithRetry -RequestUri $uri -method Get -Headers $AdditionalHeaders -OperationName $OperationName -Confirm:$false -ErrorAction Stop
                 if($null -ne $result.value)
                 {
                     #returning array of results
@@ -76,9 +136,9 @@ function Get-GraphData
                     $result
                 }
                 $uri = $result.'@odata.nextLink'
-                if([string]::IsNullOrEmpty($uri))
+                if([string]::IsNullOrEmpty($uri) -or $NoContinue)
                 {
-                    #no more pages
+                    #no more pages or we just wanted first page
                     break;
                 }
             }

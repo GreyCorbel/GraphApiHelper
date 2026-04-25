@@ -1,5 +1,6 @@
 function Invoke-GraphWithRetry
 {
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     <#
     .SYNOPSIS
     Invokes a Graph API with automatic retry logic for throttling
@@ -59,12 +60,18 @@ function Invoke-GraphWithRetry
     Invoke-GraphWithRetry -RequestUri 'https://graph.microsoft.com/v1.0/users/user@domain.com' -Method Delete
     
     Deletes a user from Microsoft Graph.
+
+    .EXAMPLE
+    Invoke-GraphWithRetry -RequestUri 'https://graph.microsoft.com/v1.0/users/user@domain.com' -Method Delete -WhatIf
+
+    Shows what delete request would run without calling Microsoft Graph.
     
     .NOTES
     - Automatically handles HTTP 429 throttling with exponential backoff
     - Maximum retry attempts: 100
     - Uses the authentication factory configured via Set-GraphAadFactory
     - Supports Application Insights telemetry when configured
+    - Supports -WhatIf and -Confirm via ShouldProcess
     #>
     param
     (
@@ -72,6 +79,7 @@ function Invoke-GraphWithRetry
         [Alias('Uri')]
         [string]$RequestUri,
         [Parameter()]
+        [ValidateSet('Get', 'Post', 'Put', 'Patch', 'Delete')]
         $method = 'Get',
         [Parameter()]
         $body,
@@ -93,10 +101,15 @@ function Invoke-GraphWithRetry
     begin
     {
         $retries = 0
-        $graphUri = GetGraphRequestUri -Uri $RequestUri
+        $graphUri = New-GrapUri -Uri $RequestUri
     }
     process
     {
+        if (-not $PSCmdlet.ShouldProcess($graphUri, "$method Microsoft Graph request"))
+        {
+            return
+        }
+
         do
         {
             $authHeader = Get-GraphAuthorizationHeader
