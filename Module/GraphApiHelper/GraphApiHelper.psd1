@@ -16,8 +16,8 @@
     PrivateData = @{
         PSData = @{
             Tags = @('Microsoft', 'Graph', 'Office365')
-            LicenseUri = 'https://github.com/GreyCorbel/GraphHelper/blob/main/LICENSE'
-            ProjectUri = 'https://github.com/GreyCorbel/GraphHelper'
+            LicenseUri = 'https://github.com/GreyCorbel/GraphApiHelper/blob/main/LICENSE'
+            ProjectUri = 'https://github.com/GreyCorbel/GraphApiHelper'
             ReleaseNotes = 'Initial release'
             ExternalModuleDependencies = @('AadAuthenticationFactory')
             # Prerelease = ''
