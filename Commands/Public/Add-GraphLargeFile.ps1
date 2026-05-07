@@ -28,6 +28,14 @@ function Add-GraphLargeFile
     Add-GraphLargeFile -LocalFilePath 'C:\Videos\training.mp4' -GraphFilePath 'https://graph.microsoft.com/v1.0/sites/{site-id}/drive/root:/Videos/training.mp4' -Verbose
     
     Uploads a video file to a SharePoint site's Videos folder with verbose output showing upload progress.
+
+    .OUTPUTS
+    None
+    The function streams upload chunk requests and does not emit the final driveItem object.
+
+    .INPUTS
+    None
+    This command does not accept pipeline input.
     
     .NOTES
     - Uses 5MB chunks for optimal performance
@@ -51,7 +59,7 @@ function Add-GraphLargeFile
     begin
     {
         $chunkSize = 320KB * 16 # 5MB chunks
-        $graphUri = New-GrapUri -Uri "$GraphFilePath"
+        $graphUri = New-GraphUri -Uri "$GraphFilePath"
     }
     process
     {

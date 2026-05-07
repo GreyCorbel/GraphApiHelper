@@ -9,12 +9,23 @@ function Set-GraphAiLogger
     
     .PARAMETER Logger
     The AILogger instance to use for logging. This should be created using the ApplicationInsights module.
+
+    .INPUTS
+    None
+    This command does not accept pipeline input.
+
+    .OUTPUTS
+    None
+    This command updates module configuration and does not return an object.
     
     .EXAMPLE
     $aiLogger = New-AiLogger -InstrumentationKey 'your-instrumentation-key'
     Set-GraphAiLogger -Logger $aiLogger
     
     Configures the module to use the specified Application Insights logger for telemetry.
+
+    .NOTES
+    Invoke-GraphWithRetry uses this logger for dependency and exception telemetry when configured.
     #>
     param
     (

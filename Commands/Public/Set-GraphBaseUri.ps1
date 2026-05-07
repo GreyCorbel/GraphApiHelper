@@ -12,6 +12,14 @@ function Set-GraphBaseUri
     The base URI to use for Graph requests. Defaults to https://graph.microsoft.com/v1.0 when
     the module is imported.
 
+    .INPUTS
+    None
+    This command does not accept pipeline input.
+
+    .OUTPUTS
+    None
+    This command updates module configuration and does not return an object.
+
     .EXAMPLE
     Set-GraphBaseUri -BaseUri 'https://graph.microsoft.com/v1.0'
 
@@ -21,6 +29,9 @@ function Set-GraphBaseUri
     Set-GraphBaseUri -BaseUri 'https://graph.microsoft.us/v1.0'
 
     Uses the Microsoft Graph US Government endpoint.
+
+    .NOTES
+    This value is used when commands receive relative Uri values, for example in New-GraphUri and Invoke-GraphWithRetry.
     #>
     param
     (

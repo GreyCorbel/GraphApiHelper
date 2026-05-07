@@ -27,6 +27,10 @@ function New-GraphBatchRequest
     .PARAMETER DependsOn
     Optional list of request IDs this request depends on.
 
+    .INPUTS
+    None
+    This command does not accept pipeline input.
+
     .OUTPUTS
     System.Management.Automation.PSCustomObject
     Returns a batch request object.
@@ -40,6 +44,9 @@ function New-GraphBatchRequest
     New-GraphBatchRequest -Id '2' -Method PATCH -Url '/users/john.doe@contoso.com' -Body @{ jobTitle = 'Principal Engineer' }
 
     Creates a batch request item that updates a user.
+
+    .NOTES
+    Use this command together with Invoke-GraphBatch to send multiple Graph requests in a single round-trip.
     #>
     [CmdletBinding()]
     param

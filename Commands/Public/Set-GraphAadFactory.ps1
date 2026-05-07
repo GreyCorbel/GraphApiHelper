@@ -16,6 +16,10 @@ function Set-GraphAadFactory
     .PARAMETER Force
     Skips validation that the specified factory exists and sets the value directly.
 
+    .INPUTS
+    None
+    This command does not accept pipeline input.
+
     .OUTPUTS
     None
     This command updates module configuration and does not return an object.

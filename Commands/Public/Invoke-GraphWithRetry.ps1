@@ -40,6 +40,10 @@ function Invoke-GraphWithRetry
 
     .PARAMETER DefaultBackOffSeconds
     Fallback delay in seconds used when the response does not include Retry-After.
+
+    .INPUTS
+    None
+    This command does not accept pipeline input.
     
     .OUTPUTS
     System.Object
@@ -70,6 +74,7 @@ function Invoke-GraphWithRetry
     - Automatically handles HTTP 429 throttling with exponential backoff
     - Maximum retry attempts: 100
     - Uses the authentication factory configured via Set-GraphAadFactory
+    - Uses the Graph scopes configured via Set-GraphScopes
     - Supports Application Insights telemetry when configured
     - Supports -WhatIf and -Confirm via ShouldProcess
     #>
@@ -82,9 +87,9 @@ function Invoke-GraphWithRetry
         [ValidateSet('Get', 'Post', 'Put', 'Patch', 'Delete')]
         $method = 'Get',
         [Parameter()]
-        $body,
+        $Body,
         [Parameter()]
-        $contentType = 'application/json',
+        $ContentType = 'application/json',
         [parameter()]
         [System.Collections.Hashtable]
         $Headers = @{},
@@ -101,7 +106,7 @@ function Invoke-GraphWithRetry
     begin
     {
         $retries = 0
-        $graphUri = New-GrapUri -Uri $RequestUri
+        $graphUri = New-GraphUri -Uri $RequestUri
     }
     process
     {

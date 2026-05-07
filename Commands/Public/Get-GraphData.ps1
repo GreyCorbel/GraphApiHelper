@@ -47,6 +47,10 @@ function Get-GraphData
 
     .PARAMETER NoContinue
     When specified, retrieves only the first page and does not follow @odata.nextLink.
+
+    .INPUTS
+    None
+    This command does not accept pipeline input.
     
     .OUTPUTS
     System.Object[]
@@ -82,6 +86,7 @@ function Get-GraphData
     - Uses Invoke-GraphWithRetry internally for throttling protection
     - Suitable for large datasets that span multiple pages
     - Uses the authentication factory configured via Set-GraphAadFactory
+    - Uses the Graph scopes configured via Set-GraphScopes
     - Supports -WhatIf and -Confirm via ShouldProcess
     #>
     param
@@ -113,7 +118,7 @@ function Get-GraphData
 
     process
     {
-        $uri = New-GrapUri -Uri $RequestUri -WithSelect $WithSelect -WithFilter $WithFilter -WithCount:$WithCount -WithExpand $WithExpand -WithSearch $WithSearch -Top $Top -Skip $Skip
+        $uri = New-GraphUri -Uri $RequestUri -WithSelect $WithSelect -WithFilter $WithFilter -WithCount:$WithCount -WithExpand $WithExpand -WithSearch $WithSearch -Top $Top -Skip $Skip
 
         if (-not $PSCmdlet.ShouldProcess($uri, 'Get Microsoft Graph data with automatic pagination'))
         {

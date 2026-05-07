@@ -12,6 +12,10 @@ function Get-GraphAuthorizationHeader
     .PARAMETER FactoryName
     Optional factory name override used to obtain the token. If omitted, the factory configured
     by Set-GraphAadFactory is used.
+
+    .INPUTS
+    None
+    This command does not accept pipeline input.
     
     .OUTPUTS
     System.Collections.Hashtable
@@ -28,7 +32,7 @@ function Get-GraphAuthorizationHeader
     Retrieves the authorization header by explicitly selecting a token factory.
     
     .NOTES
-    This function uses the factory configured via Set-GraphAadFactory.
+    This function uses the scopes configured via Set-GraphScopes and the factory configured via Set-GraphAadFactory.
     #>
     param (
         $FactoryName = $script:graphConnection.FactoryName

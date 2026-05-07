@@ -25,13 +25,17 @@ function Invoke-GraphBatch
     .EXAMPLE
     $requests = @(
         New-GraphBatchRequest -Id '1' -Method GET -Url '/me'
-        New-GraphBatchRequest -Id '2' -Method GET -Url (New-GrapUri -Uri '/users' -Top 5 -Relative)
+        New-GraphBatchRequest -Id '2' -Method GET -Url (New-GraphUri -Uri '/users' -Top 5 -Relative)
         New-GraphBatchRequest -Id '3' -Method POST -Url '/groups' -Body @{ displayName = 'Batch Group'; mailEnabled = $false; mailNickname = 'batch-group'; securityEnabled = $true }
     )
 
     Invoke-GraphBatch -BatchRequest $requests
 
-    Sends three Graph API requests in one batch and returns the response items. Use New-GrapUri with -Relative to build query strings cleanly.
+    Sends three Graph API requests in one batch and returns the response items. Use New-GraphUri with -Relative to build query strings cleanly.
+
+    .INPUTS
+    System.Management.Automation.PSCustomObject[]
+    Accepts batch request objects from the pipeline.
 
     .EXAMPLE
     @(
@@ -147,7 +151,7 @@ function Invoke-GraphBatch
             throw "Microsoft Graph batch requests support a maximum of 20 subrequests per batch. Received $($requests.Count)."
         }
 
-        $batchUri = New-GrapUri -Uri '/$batch'
+        $batchUri = New-GraphUri -Uri '/$batch'
         if (-not $PSCmdlet.ShouldProcess($batchUri, "Post Microsoft Graph batch request with $($requests.Count) subrequests"))
         {
             return
@@ -155,7 +159,7 @@ function Invoke-GraphBatch
 
         $payload = @{ requests = $requests }
         $result = Invoke-GraphWithRetry `
-            -RequestUri '/$batch' `
+            -RequestUri $batchUri `
             -Method Post `
             -Body ($payload | ConvertTo-Json -Depth 20) `
             -ContentType 'application/json' `

@@ -29,6 +29,14 @@ function Add-GraphLargeFile
     Add-GraphLargeFile -LocalFilePath 'C:\Videos\training.mp4' -GraphFilePath 'https://graph.microsoft.com/v1.0/sites/{site-id}/drive/root:/Videos/training.mp4' -Verbose
     
     Uploads a video file to a SharePoint site's Videos folder with verbose output showing upload progress.
+
+    .OUTPUTS
+    None
+    The function streams upload chunk requests and does not emit the final driveItem object.
+
+    .INPUTS
+    None
+    This command does not accept pipeline input.
     
     .NOTES
     - Uses 5MB chunks for optimal performance
@@ -52,7 +60,7 @@ function Add-GraphLargeFile
     begin
     {
         $chunkSize = 320KB * 16 # 5MB chunks
-        $graphUri = New-GrapUri -Uri "$GraphFilePath"
+        $graphUri = New-GraphUri -Uri "$GraphFilePath"
     }
     process
     {
@@ -116,6 +124,10 @@ function Get-GraphAuthorizationHeader
     .PARAMETER FactoryName
     Optional factory name override used to obtain the token. If omitted, the factory configured
     by Set-GraphAadFactory is used.
+
+    .INPUTS
+    None
+    This command does not accept pipeline input.
     
     .OUTPUTS
     System.Collections.Hashtable
@@ -132,7 +144,7 @@ function Get-GraphAuthorizationHeader
     Retrieves the authorization header by explicitly selecting a token factory.
     
     .NOTES
-    This function uses the factory configured via Set-GraphAadFactory.
+    This function uses the scopes configured via Set-GraphScopes and the factory configured via Set-GraphAadFactory.
     #>
     param (
         $FactoryName = $script:graphConnection.FactoryName
@@ -192,6 +204,10 @@ function Get-GraphData
 
     .PARAMETER NoContinue
     When specified, retrieves only the first page and does not follow @odata.nextLink.
+
+    .INPUTS
+    None
+    This command does not accept pipeline input.
     
     .OUTPUTS
     System.Object[]
@@ -227,6 +243,7 @@ function Get-GraphData
     - Uses Invoke-GraphWithRetry internally for throttling protection
     - Suitable for large datasets that span multiple pages
     - Uses the authentication factory configured via Set-GraphAadFactory
+    - Uses the Graph scopes configured via Set-GraphScopes
     - Supports -WhatIf and -Confirm via ShouldProcess
     #>
     param
@@ -258,7 +275,7 @@ function Get-GraphData
 
     process
     {
-        $uri = New-GrapUri -Uri $RequestUri -WithSelect $WithSelect -WithFilter $WithFilter -WithCount:$WithCount -WithExpand $WithExpand -WithSearch $WithSearch -Top $Top -Skip $Skip
+        $uri = New-GraphUri -Uri $RequestUri -WithSelect $WithSelect -WithFilter $WithFilter -WithCount:$WithCount -WithExpand $WithExpand -WithSearch $WithSearch -Top $Top -Skip $Skip
 
         if (-not $PSCmdlet.ShouldProcess($uri, 'Get Microsoft Graph data with automatic pagination'))
         {
@@ -321,13 +338,17 @@ function Invoke-GraphBatch
     .EXAMPLE
     $requests = @(
         New-GraphBatchRequest -Id '1' -Method GET -Url '/me'
-        New-GraphBatchRequest -Id '2' -Method GET -Url (New-GrapUri -Uri '/users' -Top 5 -Relative)
+        New-GraphBatchRequest -Id '2' -Method GET -Url (New-GraphUri -Uri '/users' -Top 5 -Relative)
         New-GraphBatchRequest -Id '3' -Method POST -Url '/groups' -Body @{ displayName = 'Batch Group'; mailEnabled = $false; mailNickname = 'batch-group'; securityEnabled = $true }
     )
 
     Invoke-GraphBatch -BatchRequest $requests
 
-    Sends three Graph API requests in one batch and returns the response items. Use New-GrapUri with -Relative to build query strings cleanly.
+    Sends three Graph API requests in one batch and returns the response items. Use New-GraphUri with -Relative to build query strings cleanly.
+
+    .INPUTS
+    System.Management.Automation.PSCustomObject[]
+    Accepts batch request objects from the pipeline.
 
     .EXAMPLE
     @(
@@ -443,7 +464,7 @@ function Invoke-GraphBatch
             throw "Microsoft Graph batch requests support a maximum of 20 subrequests per batch. Received $($requests.Count)."
         }
 
-        $batchUri = New-GrapUri -Uri '/$batch'
+        $batchUri = New-GraphUri -Uri '/$batch'
         if (-not $PSCmdlet.ShouldProcess($batchUri, "Post Microsoft Graph batch request with $($requests.Count) subrequests"))
         {
             return
@@ -451,7 +472,7 @@ function Invoke-GraphBatch
 
         $payload = @{ requests = $requests }
         $result = Invoke-GraphWithRetry `
-            -RequestUri '/$batch' `
+            -RequestUri $batchUri `
             -Method Post `
             -Body ($payload | ConvertTo-Json -Depth 20) `
             -ContentType 'application/json' `
@@ -511,6 +532,10 @@ function Invoke-GraphWithRetry
 
     .PARAMETER DefaultBackOffSeconds
     Fallback delay in seconds used when the response does not include Retry-After.
+
+    .INPUTS
+    None
+    This command does not accept pipeline input.
     
     .OUTPUTS
     System.Object
@@ -541,6 +566,7 @@ function Invoke-GraphWithRetry
     - Automatically handles HTTP 429 throttling with exponential backoff
     - Maximum retry attempts: 100
     - Uses the authentication factory configured via Set-GraphAadFactory
+    - Uses the Graph scopes configured via Set-GraphScopes
     - Supports Application Insights telemetry when configured
     - Supports -WhatIf and -Confirm via ShouldProcess
     #>
@@ -553,9 +579,9 @@ function Invoke-GraphWithRetry
         [ValidateSet('Get', 'Post', 'Put', 'Patch', 'Delete')]
         $method = 'Get',
         [Parameter()]
-        $body,
+        $Body,
         [Parameter()]
-        $contentType = 'application/json',
+        $ContentType = 'application/json',
         [parameter()]
         [System.Collections.Hashtable]
         $Headers = @{},
@@ -572,7 +598,7 @@ function Invoke-GraphWithRetry
     begin
     {
         $retries = 0
-        $graphUri = New-GrapUri -Uri $RequestUri
+        $graphUri = New-GraphUri -Uri $RequestUri
     }
     process
     {
@@ -687,6 +713,10 @@ function New-GraphBatchRequest
     .PARAMETER DependsOn
     Optional list of request IDs this request depends on.
 
+    .INPUTS
+    None
+    This command does not accept pipeline input.
+
     .OUTPUTS
     System.Management.Automation.PSCustomObject
     Returns a batch request object.
@@ -700,6 +730,9 @@ function New-GraphBatchRequest
     New-GraphBatchRequest -Id '2' -Method PATCH -Url '/users/john.doe@contoso.com' -Body @{ jobTitle = 'Principal Engineer' }
 
     Creates a batch request item that updates a user.
+
+    .NOTES
+    Use this command together with Invoke-GraphBatch to send multiple Graph requests in a single round-trip.
     #>
     [CmdletBinding()]
     param
@@ -777,7 +810,7 @@ function New-GraphBatchRequest
         $requestObject
     }
 }
-function New-GrapUri
+function New-GraphUri
 {
     <#
     .SYNOPSIS
@@ -787,8 +820,13 @@ function New-GrapUri
     Returns a Microsoft Graph request URL using the same query option parameters as Get-GraphData,
     without sending a request.
 
+    The command can build either absolute URLs (using the configured BaseUri) or relative paths
+    (for example for Graph batch subrequests). Query options are appended to existing query strings
+    and $search values are normalized for Graph search syntax.
+
     .PARAMETER Uri
     The base Microsoft Graph request URL or relative path.
+    When an absolute URL is provided with -Relative, only PathAndQuery is returned.
 
     .PARAMETER WithSelect
     Optional value for the $select query option.
@@ -804,6 +842,7 @@ function New-GrapUri
 
     .PARAMETER WithSearch
     Optional value for the $search query option.
+    If the value does not start with '(' or '"', the value is automatically wrapped in double quotes.
 
     .PARAMETER Top
     Optional value for the $top query option.
@@ -814,10 +853,57 @@ function New-GrapUri
     .PARAMETER Relative
     Returns a relative Graph path instead of prepending the configured BaseUri.
     Use this when building batch request URLs.
+    If Uri is absolute, the host and scheme are removed.
+
+    .INPUTS
+    None
+    This command does not accept pipeline input.
 
     .OUTPUTS
     System.String
-    Returns the fully constructed request URL.
+    Returns the fully constructed request URL or relative Graph path.
+
+    .EXAMPLE
+    New-GraphUri -Uri '/users' -Top 25
+
+    Returns an absolute Graph URL for /users with the $top query option.
+
+    .EXAMPLE
+    New-GraphUri -Uri '/users' -WithSelect 'id,displayName' -WithFilter "accountEnabled eq true"
+
+    Returns a URL with $select and $filter query options.
+
+    .EXAMPLE
+    New-GraphUri -Uri '/users' -WithSearch '"displayName:alex"' -WithCount
+
+    Returns a URL with $search and $count query options.
+
+    .EXAMPLE
+    New-GraphUri -Uri '/users' -WithSearch 'displayName:alex'
+
+    Returns a URL where the search value is automatically quoted.
+
+    .EXAMPLE
+    New-GraphUri -Uri 'https://graph.microsoft.com/v1.0/users' -Relative
+
+    Returns the relative path '/v1.0/users'.
+
+    .EXAMPLE
+    New-GraphUri -Uri '/users?$orderby=displayName' -Top 10
+
+    Returns a URL that preserves existing query parameters and appends new ones using '&'.
+
+    .EXAMPLE
+    New-GraphUri -Uri '/users' -Top 5 -Relative
+
+    Returns a relative path intended for batch subrequest URLs.
+
+    .NOTES
+    If a relative Uri is provided and -Relative is not used, Set-GraphBaseUri must be configured first.
+    Values are not URL-encoded by this function. Pass already encoded values when required.
+
+    .LINK
+    https://learn.microsoft.com/graph/query-parameters
     #>
     [CmdletBinding()]
     param
@@ -874,25 +960,30 @@ function New-GrapUri
         }
 
         $queryParams = [System.Collections.Generic.List[string]]::new()
-        if(-not [string]::IsNullOrEmpty($WithSelect))
+        if(-not [string]::IsNullOrWhiteSpace($WithSelect))
         {
-            $queryParams.Add("`$select=$WithSelect")
+            $queryParams.Add("`$select=$($WithSelect.Trim())")
         }
-        if(-not [string]::IsNullOrEmpty($WithFilter))
+        if(-not [string]::IsNullOrWhiteSpace($WithFilter))
         {
-            $queryParams.Add("`$filter=$WithFilter")
+            $queryParams.Add("`$filter=$($WithFilter.Trim())")
         }
         if($WithCount)
         {
             $queryParams.Add('$count=true')
         }
-        if(-not [string]::IsNullOrEmpty($WithExpand))
+        if(-not [string]::IsNullOrWhiteSpace($WithExpand))
         {
-            $queryParams.Add("`$expand=$WithExpand")
+            $queryParams.Add("`$expand=$($WithExpand.Trim())")
         }
-        if(-not [string]::IsNullOrEmpty($WithSearch))
+        if(-not [string]::IsNullOrWhiteSpace($WithSearch))
         {
-            $queryParams.Add("`$search=`"$WithSearch`"")
+            $clause = $WithSearch.Trim()
+            if(-not ($clause.StartsWith('(')) -and -not ($clause.StartsWith('"')))
+            {
+                $clause = "`"$clause`""
+            }
+            $queryParams.Add("`$search=$clause")
         }
         if($null -ne $Top)
         {
@@ -929,6 +1020,10 @@ function Set-GraphAadFactory
 
     .PARAMETER Force
     Skips validation that the specified factory exists and sets the value directly.
+
+    .INPUTS
+    None
+    This command does not accept pipeline input.
 
     .OUTPUTS
     None
@@ -980,12 +1075,23 @@ function Set-GraphAiLogger
     
     .PARAMETER Logger
     The AILogger instance to use for logging. This should be created using the ApplicationInsights module.
+
+    .INPUTS
+    None
+    This command does not accept pipeline input.
+
+    .OUTPUTS
+    None
+    This command updates module configuration and does not return an object.
     
     .EXAMPLE
     $aiLogger = New-AiLogger -InstrumentationKey 'your-instrumentation-key'
     Set-GraphAiLogger -Logger $aiLogger
     
     Configures the module to use the specified Application Insights logger for telemetry.
+
+    .NOTES
+    Invoke-GraphWithRetry uses this logger for dependency and exception telemetry when configured.
     #>
     param
     (
@@ -1012,6 +1118,14 @@ function Set-GraphBaseUri
     The base URI to use for Graph requests. Defaults to https://graph.microsoft.com/v1.0 when
     the module is imported.
 
+    .INPUTS
+    None
+    This command does not accept pipeline input.
+
+    .OUTPUTS
+    None
+    This command updates module configuration and does not return an object.
+
     .EXAMPLE
     Set-GraphBaseUri -BaseUri 'https://graph.microsoft.com/v1.0'
 
@@ -1021,6 +1135,9 @@ function Set-GraphBaseUri
     Set-GraphBaseUri -BaseUri 'https://graph.microsoft.us/v1.0'
 
     Uses the Microsoft Graph US Government endpoint.
+
+    .NOTES
+    This value is used when commands receive relative Uri values, for example in New-GraphUri and Invoke-GraphWithRetry.
     #>
     param
     (
@@ -1045,6 +1162,14 @@ function Set-GraphScopes
     
     .PARAMETER Scopes
     The scopes to use when requesting access tokens. The default is 'https://graph.microsoft.com/.default'.
+
+    .INPUTS
+    None
+    This command does not accept pipeline input.
+
+    .OUTPUTS
+    None
+    This command updates module configuration and does not return an object.
     
     .EXAMPLE
     Set-GraphScopes -Scopes 'https://graph.microsoft.com/.default'
@@ -1055,6 +1180,14 @@ function Set-GraphScopes
     Set-GraphScopes -Scopes 'https://graph.microsoft.com/User.Read'
     
     Configures the module to request a token with only User.Read permissions.
+
+    .EXAMPLE
+    Set-GraphScopes -Scopes @('https://graph.microsoft.com/User.Read', 'https://graph.microsoft.com/Mail.Read')
+
+    Configures multiple delegated scopes for token acquisition.
+
+    .NOTES
+    The configured scopes are used by Get-GraphAuthorizationHeader when requesting tokens.
     #>
     param
     (
