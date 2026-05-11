@@ -148,8 +148,34 @@ function Get-GraphData
                 }
             }
             catch {
-                Write-Warning "Could not retrieve data for uri: $uri. Error: $($_.Exception.Message)"
-                throw
+                $err = $_
+                $shouldContinue = $false
+                switch($ErrorActionPreference)
+                {
+                    'Stop' { throw }
+                    'Continue' { 
+                        Write-Error "Could not retrieve data for uri: $uri. Error: $($err.Exception.Message)"
+                        $shouldContinue = $false
+                        break 
+                    }
+                    'SilentlyContinue' { 
+                        Write-Warning "Could not retrieve data for uri: $uri. Error: $($err.Exception.Message)"
+                        $shouldContinue = $false
+                        break 
+                    }
+                    'Inquire' {
+                        $response = $PSCmdlet.ShouldContinue("Error retrieving data for uri: $uri. Do you want to continue?", "Error: $($err.Exception.Message)")
+                        if(-not $response)
+                        {
+                            $shouldContinue = $false
+                            break
+                        }
+                    }
+                }
+                if(-not $shouldContinue)
+                {
+                    break
+                }
             }
         }
     }
