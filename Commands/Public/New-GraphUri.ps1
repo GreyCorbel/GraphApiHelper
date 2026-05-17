@@ -142,7 +142,7 @@ function New-GraphUri
                 {
                     throw "BaseUri is not set. Please call Set-GraphBaseUri first or provide a full Uri"
                 }
-                $Uri = "$($script:graphConnection.BaseUri.TrimEnd('/'))/$($Uri.TrimStart('/'))"
+                $Uri = "$($script:graphConnection.BaseUri.AbsoluteUri)/$($Uri.TrimStart('/'))"
             }
             # else: Uri is already relative, use as-is
         }

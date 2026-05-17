@@ -110,6 +110,84 @@ function Add-GraphLargeFile
         }
     }
 }
+function Add-GraphReference
+{
+    <#
+    .SYNOPSIS
+    Adds a reference to a Microsoft Graph object.
+
+    .DESCRIPTION
+    Adds a reference to a Microsoft Graph group, application, or service principal.
+    This is typically used to add members or owners by creating the corresponding $ref link.
+
+    .PARAMETER ObjectId
+    The identifier of the Microsoft Graph object that will receive the reference.
+
+    .PARAMETER objectType
+    The Microsoft Graph object type. Valid values are groups, applications, and servicePrincipals.
+
+    .PARAMETER ReferenceType
+    The reference collection to update. Valid values are members and owners.
+
+    .PARAMETER MemberId
+    The identifier of the object being referenced, such as a user, group, or service principal.
+
+    .PARAMETER PermissiveModify
+    Suppresses errors when the reference already exists.
+
+    .EXAMPLE
+    Add-GraphReference -ObjectId $groupId -MemberId $userId
+
+    Adds the specified user as a member of the group.
+
+    .EXAMPLE
+    Add-GraphReference -ObjectId $groupId -ReferenceType owners -MemberId $userId -PermissiveModify
+
+    Adds the specified user as a group owner and ignores the request if the reference already exists.
+    #>
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        $ObjectId,
+        [Parameter()]
+        [ValidateSet('groups','applications','servicePrincipals')]
+        [string]$objectType = 'groups',
+        [Parameter()]
+        [ValidateSet('members', 'owners')]
+        [string]$ReferenceType = 'members',
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [string]$MemberId,
+        [switch]$PermissiveModify
+    )
+
+    begin
+    {
+        $uri = New-GraphUri -Uri "/$objectType/$ObjectId/$ReferenceType/`$ref"
+    }
+    process
+    {
+        $body = @{
+            "@odata.id" = $script:graphConnection.GetReference($MemberId)
+        } | ConvertTo-Json
+        try
+        {
+            Invoke-GraphWithRetry -Method Post -Uri $uri -Body $body
+            Write-Verbose "User with ID $MemberId added to $ReferenceType of $ObjectId."
+        }
+        catch
+        {
+            $details = ($_.ErrorDetails | ConvertFrom-Json -Depth 10)
+            if($details.error.message -match 'object references already exist' -and $PermissiveModify)
+            {
+                Write-Verbose -Message "User with ID $MemberId is already a $ReferenceType of $ObjectId."
+            }
+            else
+            {
+                throw
+            }
+        }
+    }
+}
 function Get-GraphAuthorizationHeader
 {
     <#
@@ -980,7 +1058,7 @@ function New-GraphUri
                 {
                     throw "BaseUri is not set. Please call Set-GraphBaseUri first or provide a full Uri"
                 }
-                $Uri = "$($script:graphConnection.BaseUri.TrimEnd('/'))/$($Uri.TrimStart('/'))"
+                $Uri = "$($script:graphConnection.BaseUri.AbsoluteUri)/$($Uri.TrimStart('/'))"
             }
             # else: Uri is already relative, use as-is
         }
@@ -1027,6 +1105,81 @@ function New-GraphUri
         }
 
         return $Uri
+    }
+}
+function Remove-GraphReference
+{
+    <#
+    .SYNOPSIS
+    Removes a reference from a Microsoft Graph object.
+
+    .DESCRIPTION
+    Removes a reference from a Microsoft Graph group, application, or service principal.
+    This is typically used to remove members or owners by deleting the corresponding $ref link.
+
+    .PARAMETER ObjectId
+    The identifier of the Microsoft Graph object that owns the reference.
+
+    .PARAMETER objectType
+    The Microsoft Graph object type. Valid values are groups, applications, and servicePrincipals.
+
+    .PARAMETER ReferenceType
+    The reference collection to update. Valid values are members and owners.
+
+    .PARAMETER MemberId
+    The identifier of the object being removed from the reference collection.
+
+    .PARAMETER PermissiveModify
+    Suppresses errors when the reference does not exist.
+
+    .EXAMPLE
+    Remove-GraphReference -ObjectId $groupId -MemberId $userId
+
+    Removes the specified user from the group members collection.
+
+    .EXAMPLE
+    Remove-GraphReference -ObjectId $groupId -ReferenceType owners -MemberId $userId -PermissiveModify
+
+    Removes the specified user from the group owners collection and ignores the request if the reference is already missing.
+    #>
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        $ObjectId,
+        [Parameter()]
+        [ValidateSet('groups','applications','servicePrincipals')]
+        [string]$objectType = 'groups',
+        [Parameter()]
+        [ValidateSet('members', 'owners')]
+        [string]$ReferenceType = 'members',
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [string]$MemberId,
+        [switch]$PermissiveModify
+    )
+
+    begin
+    {
+    }
+    process
+    {
+        $uri = New-GraphUri -Uri "/$objectType/$ObjectId/$ReferenceType/$MemberId/`$ref"
+        try
+        {
+            Invoke-GraphWithRetry -Method Delete -Uri $uri
+            Write-Verbose "User with ID $MemberId removed from $ReferenceType of $ObjectId."
+        }
+        catch
+        {
+            $ex = $_.Exception
+            if($ex.Response.StatusCode -eq 404 -and $PermissiveModify)
+            {
+                Write-Verbose -Message "User with ID $MemberId is not in $ReferenceType of $ObjectId."
+            }
+            else
+            {
+                throw
+            }
+        }
     }
 }
 function Set-GraphAadFactory
@@ -1173,7 +1326,16 @@ function Set-GraphBaseUri
 
     process
     {
-        $script:graphConnection.BaseUri = $BaseUri
+        $uri = New-Object System.Uri($BaseUri.Trim().TrimEnd('/'))
+        if($uri.Segments.Length -lt 2)
+        {
+            throw "Invalid BaseUri. Please provide a valid URI with at least one segment."
+        }
+        if($uri.Segments[1].TrimEnd('/') -notin @('v1.0', 'beta'))
+        {
+            throw "BaseUri must include a version segment (e.g. 'v1.0' or 'beta')."
+        }
+        $script:graphConnection.BaseUri = $uri
     }
 }
 function Set-GraphScopes
@@ -1228,12 +1390,74 @@ function Set-GraphScopes
 }
 #endregion Public commands
 #region Internal commands
+<#
+.SYNOPSIS
+Represents module-level connection settings for Microsoft Graph.
+
+.DESCRIPTION
+Stores shared configuration used by GraphApiHelper commands, including
+the authentication factory name, Graph base URI, scopes, and optional
+Application Insights logger instance.
+
+.NOTES
+This is an internal type used by module commands and is not exported.
+#>
+class GraphConnection {
+
+    #name of AadAuthenticationFactry factory to use for obtaining tokens
+    [string]$FactoryName
+    #base URI for Microsoft Graph API calls, typically https://graph.microsoft.com/v1.0 or https://graph.microsoft.us/beta
+    [Uri]$BaseUri
+    #scopes required for Microsoft Graph API access
+    [string[]]$GraphScope
+    #optional Application Insights logger instance
+    [object]$AiLogger
+
+    GraphConnection()
+    {
+        #set defaults
+        $this.FactoryName = 'graph'
+        $this.BaseUri = [Uri]::new('https://graph.microsoft.com/v1.0')
+        $this.GraphScope = @('https://graph.microsoft.com/.default')
+        $this.AiLogger = $null
+    }
+    
+    GraphConnection([string]$BaseUri, [string[]]$GraphScope, $AiLogger)
+    {
+        $this.FactoryName = 'graph'
+        $this.BaseUri = new-object System.Uri($BaseUri)
+        $this.GraphScope = $GraphScope
+        $this.AiLogger = $AiLogger
+    }
+
+    <#
+    .SYNOPSIS
+    Builds a directory object reference URI for Microsoft Graph.
+
+    .PARAMETER id
+    The Azure AD object identifier to convert into a directoryObjects
+    reference URI.
+
+    .OUTPUTS
+    System.String
+    The fully-qualified reference URI for the provided object id.
+    #>
+    [string] GetReference([string]$id)
+    {
+        $ref = "$($this.BaseUri.Scheme)://$($this.BaseUri.Host)/v1.0/directoryObjects/$id"
+        Write-Verbose "Constructed reference URI: $ref"
+        return $ref
+    }
+}
 #endregion Internal commands
 #region Module initialization
-$script:graphConnection = [PSCustomObject]@{
+$script:graphConnection = new-object GraphConnection('https://graph.microsoft.com/v1.0', @('https://graph.microsoft.com/.default'), $null)
+
+
+<# [PSCustomObject]@{
     FactoryName = 'graph'
     AiLogger = $null
-    BaseUri = 'https://graph.microsoft.com/v1.0'
+    BaseUri = new-object System.Uri('https://graph.microsoft.com/v1.0')
     GraphScope = @('https://graph.microsoft.com/.default')
-}
+} #>
 #endregion Module initialization

@@ -41,6 +41,15 @@ function Set-GraphBaseUri
 
     process
     {
-        $script:graphConnection.BaseUri = $BaseUri
+        $uri = New-Object System.Uri($BaseUri.Trim().TrimEnd('/'))
+        if($uri.Segments.Length -lt 2)
+        {
+            throw "Invalid BaseUri. Please provide a valid URI with at least one segment."
+        }
+        if($uri.Segments[1].TrimEnd('/') -notin @('v1.0', 'beta'))
+        {
+            throw "BaseUri must include a version segment (e.g. 'v1.0' or 'beta')."
+        }
+        $script:graphConnection.BaseUri = $uri
     }
 }
