@@ -15,6 +15,10 @@ function Invoke-GraphBatch
     .PARAMETER RequestHeaders
     Additional HTTP headers for the outer $batch request.
 
+    .PARAMETER RetryableErrorCodes
+    HTTP status codes that should be treated as transient and retried by Invoke-GraphWithRetry.
+    Default is 429.
+
     .PARAMETER OperationName
     The operation name to use for Application Insights logging. Default is 'Invoke-GraphBatch'.
 
@@ -45,6 +49,11 @@ function Invoke-GraphBatch
 
     Sends request definitions from the pipeline.
 
+    .EXAMPLE
+    Invoke-GraphBatch -BatchRequest $requests -RetryableErrorCodes 429,503
+
+    Sends batch requests while treating 429 and 503 responses from the outer batch call as retryable transient failures.
+
     .NOTES
     - Uses Invoke-GraphWithRetry internally for reliability.
     - Sends to the /$batch endpoint under the configured BaseUri.
@@ -55,6 +64,8 @@ function Invoke-GraphBatch
         [Parameter(Mandatory, ValueFromPipeline)]
         [Alias('Requests')]
         [PSCustomObject[]]$BatchRequest,
+        [Parameter()]
+        [int[]]$RetryableErrorCodes = @(429),
         [Parameter()]
         [System.Collections.Hashtable]$RequestHeaders = @{},
         [Parameter()]
@@ -164,6 +175,7 @@ function Invoke-GraphBatch
             -Body ($payload | ConvertTo-Json -Depth 20) `
             -ContentType 'application/json' `
             -Headers $RequestHeaders `
+            -RetryableErrorCodes $RetryableErrorCodes `
             -OperationName $OperationName `
             -Confirm:$false
 

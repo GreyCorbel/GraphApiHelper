@@ -38,6 +38,10 @@ function Get-GraphData
 
     .PARAMETER Skip
     Optional value for the $skip query option.
+
+    .PARAMETER RetryableErrorCodes
+    HTTP status codes that should be treated as transient and retried by Invoke-GraphWithRetry.
+    Default is 429.
     
     .PARAMETER OperationName
     The operation name to use for Application Insights logging. Default is 'Get-GraphData'.
@@ -80,6 +84,11 @@ function Get-GraphData
     Get-GraphData -RequestUri 'https://graph.microsoft.com/v1.0/users' -WhatIf
 
     Shows what request would be executed without calling Microsoft Graph.
+
+    .EXAMPLE
+    Get-GraphData -RequestUri 'https://graph.microsoft.com/v1.0/users' -RetryableErrorCodes 429,503
+
+    Retrieves users while treating 429 and 503 responses as retryable transient failures.
     
     .NOTES
     - Automatically handles pagination via @odata.nextLink
@@ -109,6 +118,8 @@ function Get-GraphData
         [Parameter()]
         [Nullable[int]]$Skip,
         [Parameter()]
+        [int[]]$RetryableErrorCodes = @(429),
+        [Parameter()]
         [string]$OperationName = 'Get-GraphData',
         [Parameter()]
         [System.Collections.Hashtable]$AdditionalHeaders = @{},
@@ -129,7 +140,7 @@ function Get-GraphData
         {
             try {
                 #get page of results
-                $result = Invoke-GraphWithRetry -RequestUri $uri -method Get -Headers $AdditionalHeaders -OperationName $OperationName -Confirm:$false -ErrorAction Stop
+                $result = Invoke-GraphWithRetry -RequestUri $uri -method Get -Headers $AdditionalHeaders -OperationName $OperationName -Confirm:$false -ErrorAction Stop -RetryableErrorCodes $RetryableErrorCodes
                 if($null -ne $result.value)
                 {
                     #returning array of results

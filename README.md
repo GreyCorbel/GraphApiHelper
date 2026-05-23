@@ -180,6 +180,7 @@ GET helper with automatic @odata.nextLink traversal.
 - Returns either result.value items or the single returned object
 - Use -NoContinue to stop after first page
 - Supports query options directly (WithSelect/WithFilter/WithCount/WithExpand/WithSearch/Top/Skip)
+- Supports custom retryable HTTP status codes via -RetryableErrorCodes (default: 429)
 - Supports -WhatIf and -Confirm
 
 ```powershell
@@ -191,6 +192,9 @@ $firstPage = Get-GraphData -RequestUri '/users' -Top 10 -NoContinue
 
 # Advanced query with required header
 $users = Get-GraphData -RequestUri '/users' -WithFilter "startswith(displayName,'A')" -WithCount -AdditionalHeaders @{ ConsistencyLevel = 'eventual' }
+
+# Retry both throttling and transient service errors
+$users = Get-GraphData -RequestUri '/users' -RetryableErrorCodes 429,503
 ```
 
 ### New-GraphBatchRequest
@@ -213,6 +217,7 @@ Posts Graph /$batch payload and returns response items.
 - Validates each request has id/method/url
 - Enforces unique request IDs
 - Enforces Graph maximum of 20 subrequests
+- Supports custom retryable HTTP status codes via -RetryableErrorCodes (default: 429)
 - Supports -WhatIf and -Confirm
 
 ```powershell
@@ -223,6 +228,9 @@ $requests = @(
 
 $responses = Invoke-GraphBatch -BatchRequest $requests
 $responses | Select-Object id, status
+
+# Retry outer batch call on throttling and transient service errors
+$responses = Invoke-GraphBatch -BatchRequest $requests -RetryableErrorCodes 429,503
 ```
 
 ### Add-GraphReference / Remove-GraphReference

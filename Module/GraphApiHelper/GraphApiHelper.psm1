@@ -273,6 +273,10 @@ function Get-GraphData
 
     .PARAMETER Skip
     Optional value for the $skip query option.
+
+    .PARAMETER RetryableErrorCodes
+    HTTP status codes that should be treated as transient and retried by Invoke-GraphWithRetry.
+    Default is 429.
     
     .PARAMETER OperationName
     The operation name to use for Application Insights logging. Default is 'Get-GraphData'.
@@ -315,6 +319,11 @@ function Get-GraphData
     Get-GraphData -RequestUri 'https://graph.microsoft.com/v1.0/users' -WhatIf
 
     Shows what request would be executed without calling Microsoft Graph.
+
+    .EXAMPLE
+    Get-GraphData -RequestUri 'https://graph.microsoft.com/v1.0/users' -RetryableErrorCodes 429,503
+
+    Retrieves users while treating 429 and 503 responses as retryable transient failures.
     
     .NOTES
     - Automatically handles pagination via @odata.nextLink
@@ -344,6 +353,8 @@ function Get-GraphData
         [Parameter()]
         [Nullable[int]]$Skip,
         [Parameter()]
+        [int[]]$RetryableErrorCodes = @(429),
+        [Parameter()]
         [string]$OperationName = 'Get-GraphData',
         [Parameter()]
         [System.Collections.Hashtable]$AdditionalHeaders = @{},
@@ -364,7 +375,7 @@ function Get-GraphData
         {
             try {
                 #get page of results
-                $result = Invoke-GraphWithRetry -RequestUri $uri -method Get -Headers $AdditionalHeaders -OperationName $OperationName -Confirm:$false -ErrorAction Stop
+                $result = Invoke-GraphWithRetry -RequestUri $uri -method Get -Headers $AdditionalHeaders -OperationName $OperationName -Confirm:$false -ErrorAction Stop -RetryableErrorCodes $RetryableErrorCodes
                 if($null -ne $result.value)
                 {
                     #returning array of results
@@ -432,6 +443,10 @@ function Invoke-GraphBatch
     .PARAMETER RequestHeaders
     Additional HTTP headers for the outer $batch request.
 
+    .PARAMETER RetryableErrorCodes
+    HTTP status codes that should be treated as transient and retried by Invoke-GraphWithRetry.
+    Default is 429.
+
     .PARAMETER OperationName
     The operation name to use for Application Insights logging. Default is 'Invoke-GraphBatch'.
 
@@ -462,6 +477,11 @@ function Invoke-GraphBatch
 
     Sends request definitions from the pipeline.
 
+    .EXAMPLE
+    Invoke-GraphBatch -BatchRequest $requests -RetryableErrorCodes 429,503
+
+    Sends batch requests while treating 429 and 503 responses from the outer batch call as retryable transient failures.
+
     .NOTES
     - Uses Invoke-GraphWithRetry internally for reliability.
     - Sends to the /$batch endpoint under the configured BaseUri.
@@ -472,6 +492,8 @@ function Invoke-GraphBatch
         [Parameter(Mandatory, ValueFromPipeline)]
         [Alias('Requests')]
         [PSCustomObject[]]$BatchRequest,
+        [Parameter()]
+        [int[]]$RetryableErrorCodes = @(429),
         [Parameter()]
         [System.Collections.Hashtable]$RequestHeaders = @{},
         [Parameter()]
@@ -581,6 +603,7 @@ function Invoke-GraphBatch
             -Body ($payload | ConvertTo-Json -Depth 20) `
             -ContentType 'application/json' `
             -Headers $RequestHeaders `
+            -RetryableErrorCodes $RetryableErrorCodes `
             -OperationName $OperationName `
             -Confirm:$false
 
@@ -1452,12 +1475,4 @@ class GraphConnection {
 #endregion Internal commands
 #region Module initialization
 $script:graphConnection = new-object GraphConnection('https://graph.microsoft.com/v1.0', @('https://graph.microsoft.com/.default'), $null)
-
-
-<# [PSCustomObject]@{
-    FactoryName = 'graph'
-    AiLogger = $null
-    BaseUri = new-object System.Uri('https://graph.microsoft.com/v1.0')
-    GraphScope = @('https://graph.microsoft.com/.default')
-} #>
 #endregion Module initialization

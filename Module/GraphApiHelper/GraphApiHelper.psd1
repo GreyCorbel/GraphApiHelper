@@ -1,6 +1,6 @@
 @{
     RootModule = 'GraphApiHelper.psm1'
-    ModuleVersion = '1.0.6'
+    ModuleVersion = '1.0.7'
     GUID = 'f7f4d1f4-1b1b-4b1b-8b1b-1b1b1b1b1b1b'
     Author = 'Jiri Formacek'
     CompanyName = 'GreyCorbel Solutions'
@@ -24,4 +24,5 @@
         }
     }
 }
+
 
