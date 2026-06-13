@@ -5,12 +5,11 @@ function Add-GraphLargeFile
     Uploads large files to Microsoft Graph using the resumable upload protocol
     
     .DESCRIPTION
-    Uploads large files to Microsoft Graph (OneDrive, SharePoint, etc.) using the resumable upload session API.
+    Uploads large files to Microsoft Graph (OneDrive, SharePoint, etc.) using the upload session API.
     This function handles files of any size by splitting them into chunks and uploading them sequentially.
     
-    The upload uses 5MB chunks (320KB * 16) which is optimal for Graph API uploads and supports resumable uploads
-    in case of network interruptions. The function automatically creates an upload session and manages the chunked
-    upload process.
+    The upload uses 5MB chunks (320KB * 16). The function automatically creates an upload session and
+    manages the chunked upload process for the current invocation.
     
     .PARAMETER LocalFilePath
     The full path to the local file to upload. The file must exist and be readable.
@@ -40,7 +39,7 @@ function Add-GraphLargeFile
     .NOTES
     - Uses 5MB chunks for optimal performance
     - Automatically handles upload session creation
-    - Supports conflict behavior of 'replace' - existing files will be overwritten
+    - Uses conflict behavior 'replace' so existing files are overwritten
     - Uses Invoke-GraphWithRetry internally for reliability
     - Enable -Verbose to see detailed upload progress
     - Uses the authentication factory configured via Set-GraphAadFactory

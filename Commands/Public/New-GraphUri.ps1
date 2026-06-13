@@ -17,7 +17,7 @@ function New-GraphUri
     When an absolute URL is provided with -Relative, only PathAndQuery is returned.
 
     .PARAMETER WithSelect
-    Optional value for the $select query option.
+    Optional values for the $select query option.
 
     .PARAMETER WithFilter
     Optional value for the $filter query option.
@@ -99,7 +99,7 @@ function New-GraphUri
         [Parameter(Mandatory)]
         [string]$Uri,
         [Parameter()]
-        [string]$WithSelect,
+        [string[]]$WithSelect,
         [Parameter()]
         [string]$WithFilter,
         [Parameter()]
@@ -148,9 +148,9 @@ function New-GraphUri
         }
 
         $queryParams = [System.Collections.Generic.List[string]]::new()
-        if(-not [string]::IsNullOrWhiteSpace($WithSelect))
+        if($WithSelect.Count -gt 0)
         {
-            $queryParams.Add("`$select=$($WithSelect.Trim())")
+            $queryParams.Add("`$select=$($WithSelect -join ',')")
         }
         if(-not [string]::IsNullOrWhiteSpace($WithFilter))
         {

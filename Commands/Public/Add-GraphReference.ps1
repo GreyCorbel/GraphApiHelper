@@ -23,6 +23,14 @@ function Add-GraphReference
     .PARAMETER PermissiveModify
     Suppresses errors when the reference already exists.
 
+    .INPUTS
+    System.String
+    Accepts MemberId values from the pipeline.
+
+    .OUTPUTS
+    None
+    This command performs a Graph API call and does not emit output.
+
     .EXAMPLE
     Add-GraphReference -ObjectId $groupId -MemberId $userId
 

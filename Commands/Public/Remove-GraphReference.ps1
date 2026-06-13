@@ -23,6 +23,14 @@ function Remove-GraphReference
     .PARAMETER PermissiveModify
     Suppresses errors when the reference does not exist.
 
+    .INPUTS
+    System.String
+    Accepts MemberId values from the pipeline.
+
+    .OUTPUTS
+    None
+    This command performs a Graph API call and does not emit output.
+
     .EXAMPLE
     Remove-GraphReference -ObjectId $groupId -MemberId $userId
 

@@ -6,12 +6,11 @@ function Add-GraphLargeFile
     Uploads large files to Microsoft Graph using the resumable upload protocol
     
     .DESCRIPTION
-    Uploads large files to Microsoft Graph (OneDrive, SharePoint, etc.) using the resumable upload session API.
+    Uploads large files to Microsoft Graph (OneDrive, SharePoint, etc.) using the upload session API.
     This function handles files of any size by splitting them into chunks and uploading them sequentially.
     
-    The upload uses 5MB chunks (320KB * 16) which is optimal for Graph API uploads and supports resumable uploads
-    in case of network interruptions. The function automatically creates an upload session and manages the chunked
-    upload process.
+    The upload uses 5MB chunks (320KB * 16). The function automatically creates an upload session and
+    manages the chunked upload process for the current invocation.
     
     .PARAMETER LocalFilePath
     The full path to the local file to upload. The file must exist and be readable.
@@ -41,7 +40,7 @@ function Add-GraphLargeFile
     .NOTES
     - Uses 5MB chunks for optimal performance
     - Automatically handles upload session creation
-    - Supports conflict behavior of 'replace' - existing files will be overwritten
+    - Uses conflict behavior 'replace' so existing files are overwritten
     - Uses Invoke-GraphWithRetry internally for reliability
     - Enable -Verbose to see detailed upload progress
     - Uses the authentication factory configured via Set-GraphAadFactory
@@ -157,6 +156,14 @@ function Add-GraphReference
     .PARAMETER PermissiveModify
     Suppresses errors when the reference already exists.
 
+    .INPUTS
+    System.String
+    Accepts MemberId values from the pipeline.
+
+    .OUTPUTS
+    None
+    This command performs a Graph API call and does not emit output.
+
     .EXAMPLE
     Add-GraphReference -ObjectId $groupId -MemberId $userId
 
@@ -213,6 +220,46 @@ function Add-GraphReference
 }
 function ConvertFrom-GraphErrorRecord
 {
+    <#
+    .SYNOPSIS
+    Extracts Microsoft Graph error details from a PowerShell error record.
+
+    .DESCRIPTION
+    Parses the ErrorDetails payload from a PowerShell ErrorRecord and returns the
+    deserialized Graph error object when it contains an error message.
+
+    This helper is useful when handling failures from Invoke-GraphWithRetry and
+    other commands that return Graph error payloads in JSON format.
+
+    .PARAMETER ErrorRecord
+    The PowerShell ErrorRecord to parse.
+
+    .INPUTS
+    System.Management.Automation.ErrorRecord
+    Accepts error records from the pipeline.
+
+    .OUTPUTS
+    System.Object
+    Returns the deserialized Graph error object when available.
+
+    .EXAMPLE
+    try {
+        Invoke-GraphWithRetry -RequestUri 'https://graph.microsoft.com/v1.0/users/does-not-exist' -ErrorAction Stop
+    }
+    catch {
+        $_ | ConvertFrom-GraphErrorRecord
+    }
+
+    Parses the Graph error payload from the caught exception.
+
+    .EXAMPLE
+    $details = $Error[0] | ConvertFrom-GraphErrorRecord
+
+    Parses the most recent error record and returns Graph error details when present.
+
+    .NOTES
+    Returns nothing when the error details are not JSON or do not contain error.message.
+    #>
     [CmdletBinding()]
     param (
         [Parameter(Mandatory, ValueFromPipeline)]
@@ -292,7 +339,7 @@ function Get-GraphData
     Example: 'https://graph.microsoft.com/v1.0/users'
 
     .PARAMETER WithSelect
-    Optional value for the $select query option.
+    Optional values for the $select query option.
     Example: 'id,displayName,userPrincipalName'
 
     .PARAMETER WithFilter
@@ -332,8 +379,8 @@ function Get-GraphData
     This command does not accept pipeline input.
     
     .OUTPUTS
-    System.Object[]
-    Returns all objects from the Graph API response, automatically handling pagination.
+    System.Object
+    Returns Graph response objects, automatically handling pagination for collection responses.
     
     .EXAMPLE
     Get-GraphData -RequestUri 'https://graph.microsoft.com/v1.0/users'
@@ -379,7 +426,7 @@ function Get-GraphData
         [Alias('Uri')]
         [string]$RequestUri,
         [Parameter()]
-        [string]$WithSelect,
+        [string[]]$WithSelect,
         [Parameter()]
         [string]$WithFilter,
         [Parameter()]
@@ -641,8 +688,9 @@ function Invoke-GraphWithRetry
     Invokes a Graph API with automatic retry logic for throttling
     
     .DESCRIPTION
-    Executes a Microsoft Graph API request with built-in retry logic to handle HTTP 429 (Too Many Requests) throttling responses.
-    The function will automatically retry up to 100 times with exponential backoff when throttled.
+    Executes a Microsoft Graph API request with built-in retry logic to handle transient HTTP responses.
+    The function retries retryable status codes (429 by default), using Retry-After when provided,
+    or incremental backoff based on DefaultBackOffSeconds and the retry attempt number.
     If the request returns paged results, it retrieves only a single page - callers should use Get-GraphData for automatic pagination.
     
     Supports Application Insights logging when an AILogger instance is provided when importing the module
@@ -671,7 +719,7 @@ function Invoke-GraphWithRetry
     HTTP status codes that should trigger retries. Default is 429.
 
     .PARAMETER MaxRetries
-    Maximum number of retry attempts before the error is thrown. Default is 100.
+    Maximum retry threshold used by the retry loop before the error is written. Default is 100.
 
     .PARAMETER DefaultBackOffSeconds
     Fallback delay in seconds used when the response does not include Retry-After.
@@ -706,8 +754,8 @@ function Invoke-GraphWithRetry
     Shows what delete request would run without calling Microsoft Graph.
     
     .NOTES
-    - Automatically handles HTTP 429 throttling with exponential backoff
-    - Maximum retry attempts: 100
+    - Automatically retries status codes listed in RetryableErrorCodes (429 by default)
+    - Uses Retry-After for 429 responses when available; otherwise uses incremental backoff
     - Uses the authentication factory configured via Set-GraphAadFactory
     - Uses the Graph scopes configured via Set-GraphScopes
     - Supports Application Insights telemetry when configured
@@ -825,7 +873,7 @@ function Invoke-GraphWithRetry
                     Write-AiDependency -Target 'graph.microsoft.com' -DependencyType 'Graph API' -Name $OperationName -Data $graphUri -Start $requestStart -ResultCode $resultCode -Success ($resultCode -eq 'Ok') -Connection $script:graphConnection.AiLogger
                 }
             }
-        }while($true)
+        } while($true)
     }
 }
 function New-GraphBatchRequest
@@ -973,7 +1021,7 @@ function New-GraphUri
     When an absolute URL is provided with -Relative, only PathAndQuery is returned.
 
     .PARAMETER WithSelect
-    Optional value for the $select query option.
+    Optional values for the $select query option.
 
     .PARAMETER WithFilter
     Optional value for the $filter query option.
@@ -1055,7 +1103,7 @@ function New-GraphUri
         [Parameter(Mandatory)]
         [string]$Uri,
         [Parameter()]
-        [string]$WithSelect,
+        [string[]]$WithSelect,
         [Parameter()]
         [string]$WithFilter,
         [Parameter()]
@@ -1104,9 +1152,9 @@ function New-GraphUri
         }
 
         $queryParams = [System.Collections.Generic.List[string]]::new()
-        if(-not [string]::IsNullOrWhiteSpace($WithSelect))
+        if($WithSelect.Count -gt 0)
         {
-            $queryParams.Add("`$select=$($WithSelect.Trim())")
+            $queryParams.Add("`$select=$($WithSelect -join ',')")
         }
         if(-not [string]::IsNullOrWhiteSpace($WithFilter))
         {
@@ -1171,6 +1219,14 @@ function Remove-GraphReference
 
     .PARAMETER PermissiveModify
     Suppresses errors when the reference does not exist.
+
+    .INPUTS
+    System.String
+    Accepts MemberId values from the pipeline.
+
+    .OUTPUTS
+    None
+    This command performs a Graph API call and does not emit output.
 
     .EXAMPLE
     Remove-GraphReference -ObjectId $groupId -MemberId $userId

@@ -6,8 +6,9 @@ function Invoke-GraphWithRetry
     Invokes a Graph API with automatic retry logic for throttling
     
     .DESCRIPTION
-    Executes a Microsoft Graph API request with built-in retry logic to handle HTTP 429 (Too Many Requests) throttling responses.
-    The function will automatically retry up to 100 times with exponential backoff when throttled.
+    Executes a Microsoft Graph API request with built-in retry logic to handle transient HTTP responses.
+    The function retries retryable status codes (429 by default), using Retry-After when provided,
+    or incremental backoff based on DefaultBackOffSeconds and the retry attempt number.
     If the request returns paged results, it retrieves only a single page - callers should use Get-GraphData for automatic pagination.
     
     Supports Application Insights logging when an AILogger instance is provided when importing the module
@@ -36,7 +37,7 @@ function Invoke-GraphWithRetry
     HTTP status codes that should trigger retries. Default is 429.
 
     .PARAMETER MaxRetries
-    Maximum number of retry attempts before the error is thrown. Default is 100.
+    Maximum retry threshold used by the retry loop before the error is written. Default is 100.
 
     .PARAMETER DefaultBackOffSeconds
     Fallback delay in seconds used when the response does not include Retry-After.
@@ -71,8 +72,8 @@ function Invoke-GraphWithRetry
     Shows what delete request would run without calling Microsoft Graph.
     
     .NOTES
-    - Automatically handles HTTP 429 throttling with exponential backoff
-    - Maximum retry attempts: 100
+    - Automatically retries status codes listed in RetryableErrorCodes (429 by default)
+    - Uses Retry-After for 429 responses when available; otherwise uses incremental backoff
     - Uses the authentication factory configured via Set-GraphAadFactory
     - Uses the Graph scopes configured via Set-GraphScopes
     - Supports Application Insights telemetry when configured

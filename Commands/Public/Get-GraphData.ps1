@@ -17,7 +17,7 @@ function Get-GraphData
     Example: 'https://graph.microsoft.com/v1.0/users'
 
     .PARAMETER WithSelect
-    Optional value for the $select query option.
+    Optional values for the $select query option.
     Example: 'id,displayName,userPrincipalName'
 
     .PARAMETER WithFilter
@@ -57,8 +57,8 @@ function Get-GraphData
     This command does not accept pipeline input.
     
     .OUTPUTS
-    System.Object[]
-    Returns all objects from the Graph API response, automatically handling pagination.
+    System.Object
+    Returns Graph response objects, automatically handling pagination for collection responses.
     
     .EXAMPLE
     Get-GraphData -RequestUri 'https://graph.microsoft.com/v1.0/users'
@@ -104,7 +104,7 @@ function Get-GraphData
         [Alias('Uri')]
         [string]$RequestUri,
         [Parameter()]
-        [string]$WithSelect,
+        [string[]]$WithSelect,
         [Parameter()]
         [string]$WithFilter,
         [Parameter()]
