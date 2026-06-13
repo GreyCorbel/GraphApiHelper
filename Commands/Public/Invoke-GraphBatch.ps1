@@ -177,6 +177,7 @@ function Invoke-GraphBatch
             -Headers $RequestHeaders `
             -RetryableErrorCodes $RetryableErrorCodes `
             -OperationName $OperationName `
+            -ErrorAction $ErrorActionPreference `
             -Confirm:$false
 
         if ($null -ne $result.responses)

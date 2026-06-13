@@ -56,7 +56,7 @@ function Remove-GraphReference
         $uri = New-GraphUri -Uri "/$objectType/$ObjectId/$ReferenceType/$MemberId/`$ref"
         try
         {
-            Invoke-GraphWithRetry -Method Delete -Uri $uri
+            Invoke-GraphWithRetry -Method Delete -Uri $uri -ErrorAction Stop
             Write-Verbose "User with ID $MemberId removed from $ReferenceType of $ObjectId."
         }
         catch
@@ -68,7 +68,7 @@ function Remove-GraphReference
             }
             else
             {
-                throw
+                Write-Error -ErrorRecord $_
             }
         }
     }

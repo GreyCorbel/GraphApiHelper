@@ -138,55 +138,30 @@ function Get-GraphData
 
         while($true)
         {
-            try {
-                #get page of results
-                $result = Invoke-GraphWithRetry -RequestUri $uri -method Get -Headers $AdditionalHeaders -OperationName $OperationName -Confirm:$false -ErrorAction Stop -RetryableErrorCodes $RetryableErrorCodes
-                if($null -ne $result.value)
-                {
-                    #returning array of results
-                    $result.value
-                }
-                else
-                {
-                    #returning single object
-                    $result
-                }
-                $uri = $result.'@odata.nextLink'
-                if([string]::IsNullOrEmpty($uri) -or $NoContinue)
-                {
-                    #no more pages or we just wanted first page
-                    break;
-                }
+            #get page of results
+            $result = Invoke-GraphWithRetry `
+                -RequestUri $uri `
+                -method Get `
+                -Headers $AdditionalHeaders `
+                -OperationName $OperationName `
+                -Confirm:$false `
+                -ErrorAction $ErrorActionPreference `
+                -RetryableErrorCodes $RetryableErrorCodes
+            if($null -ne $result.value)
+            {
+                #returning array of results
+                $result.value
             }
-            catch {
-                $err = $_
-                $shouldContinue = $false
-                switch($ErrorActionPreference)
-                {
-                    'Stop' { throw }
-                    'Continue' { 
-                        Write-Error "Could not retrieve data for uri: $uri. Error: $($err.Exception.Message)"
-                        $shouldContinue = $false
-                        break 
-                    }
-                    'SilentlyContinue' { 
-                        Write-Warning "Could not retrieve data for uri: $uri. Error: $($err.Exception.Message)"
-                        $shouldContinue = $false
-                        break 
-                    }
-                    'Inquire' {
-                        $response = $PSCmdlet.ShouldContinue("Error retrieving data for uri: $uri. Do you want to continue?", "Error: $($err.Exception.Message)")
-                        if(-not $response)
-                        {
-                            $shouldContinue = $false
-                            break
-                        }
-                    }
-                }
-                if(-not $shouldContinue)
-                {
-                    break
-                }
+            else
+            {
+                #returning single object
+                $result
+            }
+            $uri = $result.'@odata.nextLink'
+            if([string]::IsNullOrEmpty($uri) -or $NoContinue)
+            {
+                #no more pages or we just wanted first page
+                break;
             }
         }
     }

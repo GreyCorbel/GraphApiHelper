@@ -179,7 +179,8 @@ function Invoke-GraphWithRetry
                     start-sleep -Seconds $waitTime
                 }
                 else {
-                    throw
+                    Write-Error -ErrorRecord $_
+                    break;
                 }
             }
             finally
@@ -189,6 +190,6 @@ function Invoke-GraphWithRetry
                     Write-AiDependency -Target 'graph.microsoft.com' -DependencyType 'Graph API' -Name $OperationName -Data $graphUri -Start $requestStart -ResultCode $resultCode -Success ($resultCode -eq 'Ok') -Connection $script:graphConnection.AiLogger
                 }
             }
-        }while($true)
+        } while($true)
     }
 }

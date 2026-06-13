@@ -63,49 +63,71 @@ function Add-GraphLargeFile
     }
     process
     {
-        $item = Get-Item -Path $LocalFilePath
-        $fileSize = $item.length
-        $fileStream = [System.IO.File]::OpenRead($item.FullName)
-        Write-Verbose "Filesize: $fileSize"
-        Write-Verbose "Chunksize: $chunkSize"
         try {
+            $item = Get-Item -Path $LocalFilePath
+            $fileSize = $item.length
+            $fileStream = [System.IO.File]::OpenRead($item.FullName)
+            Write-Verbose "Filesize: $fileSize"
+            Write-Verbose "Chunksize: $chunkSize"
             $payload =  @{
                 item = @{
                     '@microsoft.graph.conflictBehavior' = 'replace' 
                 }
             }
             Write-Verbose "Requesting upload session on $graphUri`:/createUploadSession"
-            $uploadSession = Invoke-GraphWithRetry `
-                -RequestUri "$graphUri`:/createUploadSession" `
-                -method Post `
-                -body ($payload | ConvertTo-Json -Depth 10) `
-                -ContentType 'application/json' `
-                -ErrorAction Stop
-    
-            $uploadUrl = $uploadSession.uploadUrl
-            Write-Verbose "UploadUrl: $uploadUrl"
-            $offset = 0
+            try {
+                $uploadSession = Invoke-GraphWithRetry `
+                    -RequestUri "$graphUri`:/createUploadSession" `
+                    -method Post `
+                    -body ($payload | ConvertTo-Json -Depth 10) `
+                    -ErrorAction Stop
+            }
+            catch {
+                Write-Error -ErrorRecord $_
+                return
+            }
+            if($null -ne $uploadSession.uploadUrl)
+            {
+                Write-Verbose "Upload session created: $($uploadSession.uploadUrl)"
+                $uploadUrl = $uploadSession.uploadUrl
+                $offset = 0
+                
+                try
+                {
+                    while ($offset -lt $fileSize) {
+                        $bytesToRead = [Math]::Min($chunkSize, $fileSize - $offset)
+                        $buffer = New-Object byte[] $bytesToRead
+                        $bytesRead = $fileStream.Read($buffer, 0, $bytesToRead)
             
-            while ($offset -lt $fileSize) {
-                $bytesToRead = [Math]::Min($chunkSize, $fileSize - $offset)
-                $buffer = New-Object byte[] $bytesToRead
-                $bytesRead = $fileStream.Read($buffer, 0, $bytesToRead)
-    
-                if ($bytesRead -gt 0) {
-                    $contentRange = "bytes $offset-$($offset + $bytesRead - 1)/$fileSize"
-                    Write-Verbose "Writing range: $contentRange"
-                    Invoke-GraphWithRetry `
-                        -RequestUri $uploadUrl `
-                        -method Put `
-                        -body $buffer `
-                        -headers @{ 'Content-Range' = $contentRange } `
-                        -ContentType 'application/octet-stream' | out-null
-                    $offset += $bytesRead
+                        if ($bytesRead -gt 0) {
+                            $contentRange = "bytes $offset-$($offset + $bytesRead - 1)/$fileSize"
+                            Write-Verbose "Writing range: $contentRange"
+                            Invoke-GraphWithRetry `
+                                -RequestUri $uploadUrl `
+                                -method Put `
+                                -body $buffer `
+                                -headers @{ 'Content-Range' = $contentRange } `
+                                -ErrorAction Stop `
+                                -ContentType 'application/octet-stream' | out-null
+                            $offset += $bytesRead
+                        }
+                    }
                 }
+                catch
+                {
+                    Write-Error -ErrorRecord $_
+                }
+            }
+            else
+            {
+                Write-Error "Failed to create upload session. Response: $($uploadSession | ConvertTo-Json -Depth 10)"
             }
         }
         finally {
-            $fileStream.Close()
+            if($null -ne $fileStream)
+            {
+                $fileStream.Close()
+            }
         }
     }
 }

@@ -64,49 +64,71 @@ function Add-GraphLargeFile
     }
     process
     {
-        $item = Get-Item -Path $LocalFilePath
-        $fileSize = $item.length
-        $fileStream = [System.IO.File]::OpenRead($item.FullName)
-        Write-Verbose "Filesize: $fileSize"
-        Write-Verbose "Chunksize: $chunkSize"
         try {
+            $item = Get-Item -Path $LocalFilePath
+            $fileSize = $item.length
+            $fileStream = [System.IO.File]::OpenRead($item.FullName)
+            Write-Verbose "Filesize: $fileSize"
+            Write-Verbose "Chunksize: $chunkSize"
             $payload =  @{
                 item = @{
                     '@microsoft.graph.conflictBehavior' = 'replace' 
                 }
             }
             Write-Verbose "Requesting upload session on $graphUri`:/createUploadSession"
-            $uploadSession = Invoke-GraphWithRetry `
-                -RequestUri "$graphUri`:/createUploadSession" `
-                -method Post `
-                -body ($payload | ConvertTo-Json -Depth 10) `
-                -ContentType 'application/json' `
-                -ErrorAction Stop
-    
-            $uploadUrl = $uploadSession.uploadUrl
-            Write-Verbose "UploadUrl: $uploadUrl"
-            $offset = 0
+            try {
+                $uploadSession = Invoke-GraphWithRetry `
+                    -RequestUri "$graphUri`:/createUploadSession" `
+                    -method Post `
+                    -body ($payload | ConvertTo-Json -Depth 10) `
+                    -ErrorAction Stop
+            }
+            catch {
+                Write-Error -ErrorRecord $_
+                return
+            }
+            if($null -ne $uploadSession.uploadUrl)
+            {
+                Write-Verbose "Upload session created: $($uploadSession.uploadUrl)"
+                $uploadUrl = $uploadSession.uploadUrl
+                $offset = 0
+                
+                try
+                {
+                    while ($offset -lt $fileSize) {
+                        $bytesToRead = [Math]::Min($chunkSize, $fileSize - $offset)
+                        $buffer = New-Object byte[] $bytesToRead
+                        $bytesRead = $fileStream.Read($buffer, 0, $bytesToRead)
             
-            while ($offset -lt $fileSize) {
-                $bytesToRead = [Math]::Min($chunkSize, $fileSize - $offset)
-                $buffer = New-Object byte[] $bytesToRead
-                $bytesRead = $fileStream.Read($buffer, 0, $bytesToRead)
-    
-                if ($bytesRead -gt 0) {
-                    $contentRange = "bytes $offset-$($offset + $bytesRead - 1)/$fileSize"
-                    Write-Verbose "Writing range: $contentRange"
-                    Invoke-GraphWithRetry `
-                        -RequestUri $uploadUrl `
-                        -method Put `
-                        -body $buffer `
-                        -headers @{ 'Content-Range' = $contentRange } `
-                        -ContentType 'application/octet-stream' | out-null
-                    $offset += $bytesRead
+                        if ($bytesRead -gt 0) {
+                            $contentRange = "bytes $offset-$($offset + $bytesRead - 1)/$fileSize"
+                            Write-Verbose "Writing range: $contentRange"
+                            Invoke-GraphWithRetry `
+                                -RequestUri $uploadUrl `
+                                -method Put `
+                                -body $buffer `
+                                -headers @{ 'Content-Range' = $contentRange } `
+                                -ErrorAction Stop `
+                                -ContentType 'application/octet-stream' | out-null
+                            $offset += $bytesRead
+                        }
+                    }
                 }
+                catch
+                {
+                    Write-Error -ErrorRecord $_
+                }
+            }
+            else
+            {
+                Write-Error "Failed to create upload session. Response: $($uploadSession | ConvertTo-Json -Depth 10)"
             }
         }
         finally {
-            $fileStream.Close()
+            if($null -ne $fileStream)
+            {
+                $fileStream.Close()
+            }
         }
     }
 }
@@ -171,20 +193,38 @@ function Add-GraphReference
         } | ConvertTo-Json
         try
         {
-            Invoke-GraphWithRetry -Method Post -Uri $uri -Body $body
+            # we want this to throw, so to honor the -PermissiveModify switch
+            Invoke-GraphWithRetry -Method Post -Uri $uri -Body $body -ErrorAction Stop
             Write-Verbose "User with ID $MemberId added to $ReferenceType of $ObjectId."
         }
         catch
         {
-            $details = ($_.ErrorDetails | ConvertFrom-Json -Depth 10)
+            $details = $_ | ConvertFrom-GraphErrorRecord
             if($details.error.message -match 'object references already exist' -and $PermissiveModify)
             {
                 Write-Verbose -Message "User with ID $MemberId is already a $ReferenceType of $ObjectId."
             }
             else
             {
-                throw
+                Write-Error -ErrorRecord $_
             }
+        }
+    }
+}
+function ConvertFrom-GraphErrorRecord
+{
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [System.Management.Automation.ErrorRecord]$ErrorRecord
+    )
+
+    process
+    {
+        $details = $ErrorRecord.ErrorDetails | ConvertFrom-Json -ErrorAction SilentlyContinue
+        if($null -ne $details.error.message)
+        {
+            $details
         }
     }
 }
@@ -373,55 +413,30 @@ function Get-GraphData
 
         while($true)
         {
-            try {
-                #get page of results
-                $result = Invoke-GraphWithRetry -RequestUri $uri -method Get -Headers $AdditionalHeaders -OperationName $OperationName -Confirm:$false -ErrorAction Stop -RetryableErrorCodes $RetryableErrorCodes
-                if($null -ne $result.value)
-                {
-                    #returning array of results
-                    $result.value
-                }
-                else
-                {
-                    #returning single object
-                    $result
-                }
-                $uri = $result.'@odata.nextLink'
-                if([string]::IsNullOrEmpty($uri) -or $NoContinue)
-                {
-                    #no more pages or we just wanted first page
-                    break;
-                }
+            #get page of results
+            $result = Invoke-GraphWithRetry `
+                -RequestUri $uri `
+                -method Get `
+                -Headers $AdditionalHeaders `
+                -OperationName $OperationName `
+                -Confirm:$false `
+                -ErrorAction $ErrorActionPreference `
+                -RetryableErrorCodes $RetryableErrorCodes
+            if($null -ne $result.value)
+            {
+                #returning array of results
+                $result.value
             }
-            catch {
-                $err = $_
-                $shouldContinue = $false
-                switch($ErrorActionPreference)
-                {
-                    'Stop' { throw }
-                    'Continue' { 
-                        Write-Error "Could not retrieve data for uri: $uri. Error: $($err.Exception.Message)"
-                        $shouldContinue = $false
-                        break 
-                    }
-                    'SilentlyContinue' { 
-                        Write-Warning "Could not retrieve data for uri: $uri. Error: $($err.Exception.Message)"
-                        $shouldContinue = $false
-                        break 
-                    }
-                    'Inquire' {
-                        $response = $PSCmdlet.ShouldContinue("Error retrieving data for uri: $uri. Do you want to continue?", "Error: $($err.Exception.Message)")
-                        if(-not $response)
-                        {
-                            $shouldContinue = $false
-                            break
-                        }
-                    }
-                }
-                if(-not $shouldContinue)
-                {
-                    break
-                }
+            else
+            {
+                #returning single object
+                $result
+            }
+            $uri = $result.'@odata.nextLink'
+            if([string]::IsNullOrEmpty($uri) -or $NoContinue)
+            {
+                #no more pages or we just wanted first page
+                break;
             }
         }
     }
@@ -605,6 +620,7 @@ function Invoke-GraphBatch
             -Headers $RequestHeaders `
             -RetryableErrorCodes $RetryableErrorCodes `
             -OperationName $OperationName `
+            -ErrorAction $ErrorActionPreference `
             -Confirm:$false
 
         if ($null -ne $result.responses)
@@ -798,7 +814,8 @@ function Invoke-GraphWithRetry
                     start-sleep -Seconds $waitTime
                 }
                 else {
-                    throw
+                    Write-Error -ErrorRecord $_
+                    break;
                 }
             }
             finally
@@ -1188,7 +1205,7 @@ function Remove-GraphReference
         $uri = New-GraphUri -Uri "/$objectType/$ObjectId/$ReferenceType/$MemberId/`$ref"
         try
         {
-            Invoke-GraphWithRetry -Method Delete -Uri $uri
+            Invoke-GraphWithRetry -Method Delete -Uri $uri -ErrorAction Stop
             Write-Verbose "User with ID $MemberId removed from $ReferenceType of $ObjectId."
         }
         catch
@@ -1200,7 +1217,7 @@ function Remove-GraphReference
             }
             else
             {
-                throw
+                Write-Error -ErrorRecord $_
             }
         }
     }

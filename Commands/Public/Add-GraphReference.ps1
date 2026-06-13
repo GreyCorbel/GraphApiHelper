@@ -59,19 +59,20 @@ function Add-GraphReference
         } | ConvertTo-Json
         try
         {
-            Invoke-GraphWithRetry -Method Post -Uri $uri -Body $body
+            # we want this to throw, so to honor the -PermissiveModify switch
+            Invoke-GraphWithRetry -Method Post -Uri $uri -Body $body -ErrorAction Stop
             Write-Verbose "User with ID $MemberId added to $ReferenceType of $ObjectId."
         }
         catch
         {
-            $details = ($_.ErrorDetails | ConvertFrom-Json -Depth 10)
+            $details = $_ | ConvertFrom-GraphErrorRecord
             if($details.error.message -match 'object references already exist' -and $PermissiveModify)
             {
                 Write-Verbose -Message "User with ID $MemberId is already a $ReferenceType of $ObjectId."
             }
             else
             {
-                throw
+                Write-Error -ErrorRecord $_
             }
         }
     }
