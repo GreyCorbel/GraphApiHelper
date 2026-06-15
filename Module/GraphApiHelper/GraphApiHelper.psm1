@@ -196,7 +196,7 @@ function Add-GraphReference
     process
     {
         $body = @{
-            "@odata.id" = $script:graphConnection.GetReference($MemberId)
+            "@odata.id" = Get-GraphReferenceUri -ObjectId $MemberId
         } | ConvertTo-Json
         try
         {
@@ -486,6 +486,25 @@ function Get-GraphData
                 break;
             }
         }
+    }
+}
+function Get-GraphReferenceUri
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory)]
+        [Alias('Id')]
+        [string]$ObjectId
+    )
+
+    begin
+    {
+        if($null -eq $script:graphConnection)
+        {
+            throw "Graph connection not initialized. Please call Connect-Graph first."
+        }
+        $script:graphConnection.GetReference($ObjectId)
     }
 }
 function Invoke-GraphBatch
@@ -1500,6 +1519,8 @@ This is an internal type used by module commands and is not exported.
 #>
 class GraphConnection {
 
+    #name of the connection
+    [string]$Name
     #name of AadAuthenticationFactry factory to use for obtaining tokens
     [string]$FactoryName
     #base URI for Microsoft Graph API calls, typically https://graph.microsoft.com/v1.0 or https://graph.microsoft.us/beta
@@ -1512,6 +1533,7 @@ class GraphConnection {
     GraphConnection()
     {
         #set defaults
+        $this.Name = 'DefaultGraphConnection'
         $this.FactoryName = 'graph'
         $this.BaseUri = [Uri]::new('https://graph.microsoft.com/v1.0')
         $this.GraphScope = @('https://graph.microsoft.com/.default')
@@ -1520,6 +1542,7 @@ class GraphConnection {
     
     GraphConnection([string]$BaseUri, [string[]]$GraphScope, $AiLogger)
     {
+        $this.Name = 'DefaultGraphConnection'
         $this.FactoryName = 'graph'
         $this.BaseUri = new-object System.Uri($BaseUri)
         $this.GraphScope = $GraphScope

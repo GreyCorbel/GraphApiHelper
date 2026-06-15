@@ -8,7 +8,7 @@
     Description = 'Module provides simple commands for working with Microsoft Graph API, such as GET/POST/PATCH/DELETE requests, handling large file upload, retry logic, etc.'
     PowerShellVersion = '5.1'
     
-    FunctionsToExport = @('Add-GraphLargeFile','Add-GraphReference','ConvertFrom-GraphErrorRecord','Get-GraphAuthorizationHeader','Get-GraphData','Invoke-GraphBatch','Invoke-GraphWithRetry','New-GraphBatchRequest','New-GraphUri','Remove-GraphReference','Set-GraphAadFactory','Set-GraphAiLogger','Set-GraphBaseUri','Set-GraphScopes')
+    FunctionsToExport = @('Add-GraphLargeFile','Add-GraphReference','ConvertFrom-GraphErrorRecord','Get-GraphAuthorizationHeader','Get-GraphData','Get-GraphReferenceUri','Invoke-GraphBatch','Invoke-GraphWithRetry','New-GraphBatchRequest','New-GraphUri','Remove-GraphReference','Set-GraphAadFactory','Set-GraphAiLogger','Set-GraphBaseUri','Set-GraphScopes')
     CmdletsToExport = @()
     VariablesToExport = @()
     AliasesToExport = @()
@@ -24,6 +24,9 @@
         }
     }
 }
+
+
+
 
 
 

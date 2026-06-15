@@ -12,6 +12,8 @@ This is an internal type used by module commands and is not exported.
 #>
 class GraphConnection {
 
+    #name of the connection
+    [string]$Name
     #name of AadAuthenticationFactry factory to use for obtaining tokens
     [string]$FactoryName
     #base URI for Microsoft Graph API calls, typically https://graph.microsoft.com/v1.0 or https://graph.microsoft.us/beta
@@ -24,6 +26,7 @@ class GraphConnection {
     GraphConnection()
     {
         #set defaults
+        $this.Name = 'DefaultGraphConnection'
         $this.FactoryName = 'graph'
         $this.BaseUri = [Uri]::new('https://graph.microsoft.com/v1.0')
         $this.GraphScope = @('https://graph.microsoft.com/.default')
@@ -32,6 +35,7 @@ class GraphConnection {
     
     GraphConnection([string]$BaseUri, [string[]]$GraphScope, $AiLogger)
     {
+        $this.Name = 'DefaultGraphConnection'
         $this.FactoryName = 'graph'
         $this.BaseUri = new-object System.Uri($BaseUri)
         $this.GraphScope = $GraphScope

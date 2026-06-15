@@ -63,7 +63,7 @@ function Add-GraphReference
     process
     {
         $body = @{
-            "@odata.id" = $script:graphConnection.GetReference($MemberId)
+            "@odata.id" = Get-GraphReferenceUri -ObjectId $MemberId
         } | ConvertTo-Json
         try
         {
