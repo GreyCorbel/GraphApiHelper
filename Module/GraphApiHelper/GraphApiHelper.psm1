@@ -186,7 +186,9 @@ function Add-GraphReference
         [string]$ReferenceType = 'members',
         [Parameter(Mandatory, ValueFromPipeline)]
         [string]$MemberId,
-        [switch]$PermissiveModify
+        [switch]$PermissiveModify,
+        [Parameter()]
+        [hashtable]$AuthorizationHeader
     )
 
     begin
@@ -201,7 +203,7 @@ function Add-GraphReference
         try
         {
             # we want this to throw, so to honor the -PermissiveModify switch
-            Invoke-GraphWithRetry -Method Post -Uri $uri -Body $body -ErrorAction Stop
+            Invoke-GraphWithRetry -Method Post -Uri $uri -Body $body -AuthorizationHeader $AuthorizationHeader -ErrorAction Stop
             Write-Verbose "User with ID $MemberId added to $ReferenceType of $ObjectId."
         }
         catch
@@ -446,7 +448,9 @@ function Get-GraphData
         [Parameter()]
         [System.Collections.Hashtable]$AdditionalHeaders = @{},
         [Parameter()]
-        [switch]$NoContinue
+        [switch]$NoContinue,
+        [Parameter()]
+        [hashtable]$AuthorizationHeader
     )
 
     process
@@ -468,7 +472,8 @@ function Get-GraphData
                 -OperationName $OperationName `
                 -Confirm:$false `
                 -ErrorAction $ErrorActionPreference `
-                -RetryableErrorCodes $RetryableErrorCodes
+                -RetryableErrorCodes $RetryableErrorCodes `
+                -AuthorizationHeader $AuthorizationHeader
             if($null -ne $result.value)
             {
                 #returning array of results
@@ -488,6 +493,37 @@ function Get-GraphData
         }
     }
 }
+<#
+.SYNOPSIS
+Builds a Microsoft Graph directory object reference URI.
+
+.DESCRIPTION
+Returns the directoryObjects reference URI for the supplied object identifier
+using the currently configured Graph base endpoint.
+
+This helper is primarily used by reference-management commands such as
+Add-GraphReference and Remove-GraphReference.
+
+.PARAMETER ObjectId
+The Azure AD object identifier to convert into a directoryObjects reference URI.
+
+.INPUTS
+None
+This command does not accept pipeline input.
+
+.OUTPUTS
+System.String
+Returns the fully-qualified Microsoft Graph reference URI.
+
+.EXAMPLE
+Get-GraphReferenceUri -ObjectId '11111111-2222-3333-4444-555555555555'
+
+Returns a URI such as:
+https://graph.microsoft.com/v1.0/directoryObjects/11111111-2222-3333-4444-555555555555
+
+.NOTES
+Throws when Graph connection state is not initialized.
+#>
 function Get-GraphReferenceUri
 {
     [CmdletBinding()]
@@ -578,7 +614,9 @@ function Invoke-GraphBatch
         [Parameter()]
         [System.Collections.Hashtable]$RequestHeaders = @{},
         [Parameter()]
-        [string]$OperationName = 'Invoke-GraphBatch'
+        [string]$OperationName = 'Invoke-GraphBatch',
+        [Parameter()]
+        [hashtable]$AuthorizationHeader
     )
 
     begin
@@ -686,6 +724,7 @@ function Invoke-GraphBatch
             -Headers $RequestHeaders `
             -RetryableErrorCodes $RetryableErrorCodes `
             -OperationName $OperationName `
+            -AuthorizationHeader $AuthorizationHeader `
             -ErrorAction $ErrorActionPreference `
             -Confirm:$false
 
@@ -802,7 +841,9 @@ function Invoke-GraphWithRetry
         [Parameter()]
         [int]$MaxRetries = 100,
         [Parameter()]
-        [int]$DefaultBackOffSeconds = 1
+        [int]$DefaultBackOffSeconds = 1,
+        [Parameter()]
+        [hashtable]$AuthorizationHeader
     )
 
     begin
@@ -819,9 +860,12 @@ function Invoke-GraphWithRetry
 
         do
         {
-            $authHeader = Get-GraphAuthorizationHeader
+            if($null -eq $AuthorizationHeader)
+            {
+                $AuthorizationHeader = Get-GraphAuthorizationHeader
+            }
             Write-Verbose "Invoking Graph API: $graphUri with method $method. Attempt #$($retries + 1)"
-            $headers['Authorization'] = $authHeader['Authorization']
+            $headers['Authorization'] = $AuthorizationHeader['Authorization']
             $resultCode = 'Ok'
             try {
                 $requestStart = [DateTime]::UtcNow
@@ -1269,7 +1313,9 @@ function Remove-GraphReference
         [string]$ReferenceType = 'members',
         [Parameter(Mandatory, ValueFromPipeline)]
         [string]$MemberId,
-        [switch]$PermissiveModify
+        [switch]$PermissiveModify,
+        [Parameter()]
+        [hashtable]$AuthorizationHeader
     )
 
     begin
@@ -1280,7 +1326,7 @@ function Remove-GraphReference
         $uri = New-GraphUri -Uri "/$objectType/$ObjectId/$ReferenceType/$MemberId/`$ref"
         try
         {
-            Invoke-GraphWithRetry -Method Delete -Uri $uri -ErrorAction Stop
+            Invoke-GraphWithRetry -Method Delete -Uri $uri -AuthorizationHeader $AuthorizationHeader -ErrorAction Stop
             Write-Verbose "User with ID $MemberId removed from $ReferenceType of $ObjectId."
         }
         catch
@@ -1570,5 +1616,30 @@ class GraphConnection {
 }
 #endregion Internal commands
 #region Module initialization
+<#
+.SYNOPSIS
+Initializes module-level Graph connection state.
+
+.DESCRIPTION
+Creates the default GraphConnection instance used by GraphApiHelper commands.
+The default connection uses:
+- Base URI: https://graph.microsoft.com/v1.0
+- Scope: https://graph.microsoft.com/.default
+- No Application Insights logger
+
+This script runs during module import and prepares shared configuration consumed
+by commands such as Invoke-GraphWithRetry, Get-GraphData, and New-GraphUri.
+
+.INPUTS
+None
+This script does not accept pipeline input.
+
+.OUTPUTS
+None
+Initializes module state and does not emit output.
+
+.NOTES
+Internal initialization script. Not intended to be called directly.
+#>
 $script:graphConnection = new-object GraphConnection('https://graph.microsoft.com/v1.0', @('https://graph.microsoft.com/.default'), $null)
 #endregion Module initialization

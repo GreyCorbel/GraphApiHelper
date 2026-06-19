@@ -101,7 +101,9 @@ function Invoke-GraphWithRetry
         [Parameter()]
         [int]$MaxRetries = 100,
         [Parameter()]
-        [int]$DefaultBackOffSeconds = 1
+        [int]$DefaultBackOffSeconds = 1,
+        [Parameter()]
+        [hashtable]$AuthorizationHeader
     )
 
     begin
@@ -118,9 +120,12 @@ function Invoke-GraphWithRetry
 
         do
         {
-            $authHeader = Get-GraphAuthorizationHeader
+            if($null -eq $AuthorizationHeader)
+            {
+                $AuthorizationHeader = Get-GraphAuthorizationHeader
+            }
             Write-Verbose "Invoking Graph API: $graphUri with method $method. Attempt #$($retries + 1)"
-            $headers['Authorization'] = $authHeader['Authorization']
+            $headers['Authorization'] = $AuthorizationHeader['Authorization']
             $resultCode = 'Ok'
             try {
                 $requestStart = [DateTime]::UtcNow

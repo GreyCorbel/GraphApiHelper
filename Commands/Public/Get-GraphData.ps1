@@ -124,7 +124,9 @@ function Get-GraphData
         [Parameter()]
         [System.Collections.Hashtable]$AdditionalHeaders = @{},
         [Parameter()]
-        [switch]$NoContinue
+        [switch]$NoContinue,
+        [Parameter()]
+        [hashtable]$AuthorizationHeader
     )
 
     process
@@ -146,7 +148,8 @@ function Get-GraphData
                 -OperationName $OperationName `
                 -Confirm:$false `
                 -ErrorAction $ErrorActionPreference `
-                -RetryableErrorCodes $RetryableErrorCodes
+                -RetryableErrorCodes $RetryableErrorCodes `
+                -AuthorizationHeader $AuthorizationHeader
             if($null -ne $result.value)
             {
                 #returning array of results

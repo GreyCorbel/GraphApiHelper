@@ -53,7 +53,9 @@ function Add-GraphReference
         [string]$ReferenceType = 'members',
         [Parameter(Mandatory, ValueFromPipeline)]
         [string]$MemberId,
-        [switch]$PermissiveModify
+        [switch]$PermissiveModify,
+        [Parameter()]
+        [hashtable]$AuthorizationHeader
     )
 
     begin
@@ -68,7 +70,7 @@ function Add-GraphReference
         try
         {
             # we want this to throw, so to honor the -PermissiveModify switch
-            Invoke-GraphWithRetry -Method Post -Uri $uri -Body $body -ErrorAction Stop
+            Invoke-GraphWithRetry -Method Post -Uri $uri -Body $body -AuthorizationHeader $AuthorizationHeader -ErrorAction Stop
             Write-Verbose "User with ID $MemberId added to $ReferenceType of $ObjectId."
         }
         catch

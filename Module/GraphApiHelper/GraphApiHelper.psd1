@@ -1,6 +1,6 @@
 @{
     RootModule = 'GraphApiHelper.psm1'
-    ModuleVersion = '1.0.9'
+    ModuleVersion = '1.0.10'
     GUID = 'f7f4d1f4-1b1b-4b1b-8b1b-1b1b1b1b1b1b'
     Author = 'Jiri Formacek'
     CompanyName = 'GreyCorbel Solutions'
@@ -18,12 +18,15 @@
             Tags = @('Microsoft', 'Graph', 'Office365')
             LicenseUri = 'https://github.com/GreyCorbel/GraphApiHelper/blob/main/LICENSE'
             ProjectUri = 'https://github.com/GreyCorbel/GraphApiHelper'
-            ReleaseNotes = 'Initial release'
+            ReleaseNotes = 'Version 1.0.10'
             ExternalModuleDependencies = @('AadAuthenticationFactory')
             # Prerelease = ''
         }
     }
 }
+
+
+
 
 
 

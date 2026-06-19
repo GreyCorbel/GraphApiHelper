@@ -69,7 +69,9 @@ function Invoke-GraphBatch
         [Parameter()]
         [System.Collections.Hashtable]$RequestHeaders = @{},
         [Parameter()]
-        [string]$OperationName = 'Invoke-GraphBatch'
+        [string]$OperationName = 'Invoke-GraphBatch',
+        [Parameter()]
+        [hashtable]$AuthorizationHeader
     )
 
     begin
@@ -177,6 +179,7 @@ function Invoke-GraphBatch
             -Headers $RequestHeaders `
             -RetryableErrorCodes $RetryableErrorCodes `
             -OperationName $OperationName `
+            -AuthorizationHeader $AuthorizationHeader `
             -ErrorAction $ErrorActionPreference `
             -Confirm:$false
 
