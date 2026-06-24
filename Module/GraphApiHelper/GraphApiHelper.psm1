@@ -203,7 +203,7 @@ function Add-GraphReference
         try
         {
             # we want this to throw, so to honor the -PermissiveModify switch
-            Invoke-GraphWithRetry -Method Post -Uri $uri -Body $body -AuthorizationHeader $AuthorizationHeader -ErrorAction Stop
+            [void](Invoke-GraphWithRetry -Method Post -Uri $uri -Body $body -AuthorizationHeader $AuthorizationHeader -ErrorAction Stop)
             Write-Verbose "User with ID $MemberId added to $ReferenceType of $ObjectId."
         }
         catch
@@ -1326,7 +1326,7 @@ function Remove-GraphReference
         $uri = New-GraphUri -Uri "/$objectType/$ObjectId/$ReferenceType/$MemberId/`$ref"
         try
         {
-            Invoke-GraphWithRetry -Method Delete -Uri $uri -AuthorizationHeader $AuthorizationHeader -ErrorAction Stop
+            [void](Invoke-GraphWithRetry -Method Delete -Uri $uri -AuthorizationHeader $AuthorizationHeader -ErrorAction Stop)
             Write-Verbose "User with ID $MemberId removed from $ReferenceType of $ObjectId."
         }
         catch
