@@ -261,6 +261,9 @@ function ConvertFrom-GraphErrorRecord
 
     .NOTES
     Returns nothing when the error details are not JSON or do not contain error.message.
+
+    .LINK
+    https://github.com/GreyCorbel/GraphApiHelper
     #>
     [CmdletBinding()]
     param (
@@ -450,7 +453,9 @@ function Get-GraphData
         [Parameter()]
         [switch]$NoContinue,
         [Parameter()]
-        [hashtable]$AuthorizationHeader
+        [hashtable]$AuthorizationHeader,
+        [Parameter()]
+        [string]$ResponseMetadataVariable
     )
 
     process
@@ -488,6 +493,11 @@ function Get-GraphData
             if([string]::IsNullOrEmpty($uri) -or $NoContinue)
             {
                 #no more pages or we just wanted first page
+                if(-not [string]::IsNullOrEmpty($ResponseMetadataVariable) -and $null -ne $result)
+                {
+                    $metadata = Get-GraphResponseMetadata -Response $result
+                    $PSCmdlet.SessionState.PSVariable.Set( $ResponseMetadataVariable, $metadata )
+                }
                 break;
             }
         }
@@ -523,6 +533,9 @@ https://graph.microsoft.com/v1.0/directoryObjects/11111111-2222-3333-4444-555555
 
 .NOTES
 Throws when Graph connection state is not initialized.
+
+.LINK
+https://learn.microsoft.com/en-us/graph/api/resources/directoryobject
 #>
 function Get-GraphReferenceUri
 {
@@ -1551,6 +1564,23 @@ function Set-GraphScopes
 }
 #endregion Public commands
 #region Internal commands
+
+function Get-GraphResponseMetadata {
+    param(
+        [Parameter(Mandatory)]
+        [psobject]$Response
+    )
+
+    $props = $Response.PSObject.Properties
+
+    [GraphResponseMetadata]@{
+        Context  = $props['@odata.context']?.Value
+        NextLink = $props['@odata.nextLink']?.Value
+        DeltaLink = $props['@odata.deltaLink']?.Value
+        Count    = $props['@odata.count']?.Value
+        Type     = $props['@odata.type']?.Value
+    }
+}
 <#
 .SYNOPSIS
 Represents module-level connection settings for Microsoft Graph.
@@ -1613,6 +1643,13 @@ class GraphConnection {
         Write-Verbose "Constructed reference URI: $ref"
         return $ref
     }
+}
+class GraphResponseMetadata {
+    [string]$Context
+    [string]$NextLink
+    [string]$DeltaLink
+    [long]$Count
+    [string]$Type
 }
 #endregion Internal commands
 #region Module initialization

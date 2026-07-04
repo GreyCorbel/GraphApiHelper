@@ -39,7 +39,7 @@ function Add-GraphLargeFile
     .NOTES
     - Uses 5MB chunks for optimal performance
     - Automatically handles upload session creation
-    - Uses conflict behavior 'replace' so existing files are overwritten
+    - Uses conflict behavior specified by the -ConflictBehavior parameter
     - Uses Invoke-GraphWithRetry internally for reliability
     - Enable -Verbose to see detailed upload progress
     - Uses the authentication factory configured via Set-GraphAadFactory
@@ -52,7 +52,10 @@ function Add-GraphLargeFile
         [Parameter(Mandatory)]
         $LocalFilePath,
         [Parameter(Mandatory)]
-        $GraphFilePath
+        $GraphFilePath,
+        [Parameter()]
+        [ValidateSet('replace', 'rename', 'fail')]
+        [string]$ConflictBehavior = 'replace'
     )
 
     begin
@@ -70,7 +73,7 @@ function Add-GraphLargeFile
             Write-Verbose "Chunksize: $chunkSize"
             $payload =  @{
                 item = @{
-                    '@microsoft.graph.conflictBehavior' = 'replace' 
+                    '@microsoft.graph.conflictBehavior' = $ConflictBehavior
                 }
             }
             Write-Verbose "Requesting upload session on $graphUri`:/createUploadSession"

@@ -79,8 +79,10 @@ This module currently exports:
 
 - Add-GraphLargeFile
 - Add-GraphReference
+- ConvertFrom-GraphErrorRecord
 - Get-GraphAuthorizationHeader
 - Get-GraphData
+- Get-GraphReferenceUri
 - Invoke-GraphBatch
 - Invoke-GraphWithRetry
 - New-GraphBatchRequest
@@ -248,6 +250,27 @@ $memberIds | Add-GraphReference -ObjectId $groupId
 
 # Remove owner and ignore missing reference
 Remove-GraphReference -ObjectId $groupId -ReferenceType owners -MemberId $ownerId -PermissiveModify
+```
+
+### Get-GraphReferenceUri
+
+Builds the Microsoft Graph directoryObjects reference URI for a supplied object identifier.
+
+```powershell
+Get-GraphReferenceUri -ObjectId '11111111-2222-3333-4444-555555555555'
+```
+
+### ConvertFrom-GraphErrorRecord
+
+Extracts the parsed Graph error payload from a PowerShell error record when Graph returns JSON error details.
+
+```powershell
+try {
+    Invoke-GraphWithRetry -RequestUri 'https://graph.microsoft.com/v1.0/users/does-not-exist' -ErrorAction Stop
+}
+catch {
+    $_ | ConvertFrom-GraphErrorRecord
+}
 ```
 
 ### Add-GraphLargeFile

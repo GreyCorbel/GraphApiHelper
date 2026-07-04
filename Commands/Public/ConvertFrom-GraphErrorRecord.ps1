@@ -39,6 +39,9 @@ function ConvertFrom-GraphErrorRecord
 
     .NOTES
     Returns nothing when the error details are not JSON or do not contain error.message.
+
+    .LINK
+    https://github.com/GreyCorbel/GraphApiHelper
     #>
     [CmdletBinding()]
     param (

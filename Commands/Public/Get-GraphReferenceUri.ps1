@@ -28,6 +28,9 @@ https://graph.microsoft.com/v1.0/directoryObjects/11111111-2222-3333-4444-555555
 
 .NOTES
 Throws when Graph connection state is not initialized.
+
+.LINK
+https://learn.microsoft.com/en-us/graph/api/resources/directoryobject
 #>
 function Get-GraphReferenceUri
 {
