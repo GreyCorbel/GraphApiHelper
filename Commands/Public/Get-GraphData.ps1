@@ -98,9 +98,34 @@ function Get-GraphData
     Get-GraphData -RequestUri 'https://graph.microsoft.com/v1.0/users' -RetryableErrorCodes 429,503
 
     Retrieves users while treating 429 and 503 responses as retryable transient failures.
+
+    .EXAMPLE
+    # Initial delta sync — retrieve all users and capture the deltaLink for future incremental syncs
+    $users = Get-GraphData -RequestUri '/users/delta' `
+        -WithSelect 'id,displayName,userPrincipalName,accountEnabled' `
+        -ResponseMetadataVariable 'meta'
+
+    # Persist the deltaLink so the next run can request only changes
+    $meta.DeltaLink | Set-Content -Path '.\users-deltalink.txt'
+
+    .EXAMPLE
+    # Incremental delta sync — retrieve only changes since the last sync
+    $deltaLink = Get-Content -Path '.\users-deltalink.txt' -Raw
+
+    $changes = Get-GraphData -RequestUri $deltaLink -ResponseMetadataVariable 'meta'
+
+    # Process changes: items with '@removed' were deleted, others were added or updated
+    $deleted = $changes | Where-Object { $_.'@removed' }
+    $modified = $changes | Where-Object { -not $_.'@removed' }
+
+    # Save updated deltaLink for the next run
+    $meta.DeltaLink | Set-Content -Path '.\users-deltalink.txt'
     
     .NOTES
     - Automatically handles pagination via @odata.nextLink
+    - Supports Microsoft Graph delta queries: call a /delta endpoint and use -ResponseMetadataVariable
+      to capture the @odata.deltaLink returned on the final page; pass the deltaLink as -RequestUri
+      on subsequent calls to retrieve only changes since the last sync
     - Uses Invoke-GraphWithRetry internally for throttling protection
     - Suitable for large datasets that span multiple pages
     - Uses the authentication factory configured via Set-GraphAadFactory

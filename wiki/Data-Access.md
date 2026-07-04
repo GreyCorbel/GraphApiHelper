@@ -78,6 +78,57 @@ Get-GraphData -RequestUri '/users' -WhatIf
 - Uses `Invoke-GraphWithRetry` internally, so all retry behaviour applies.
 - Returns individual items from `.value` when Graph returns a collection, or the raw object for single-resource responses.
 - For write operations (POST/PATCH/DELETE) use `Invoke-GraphWithRetry` directly.
+- Delta queries are fully supported — see [Delta Queries](#delta-queries) below.
+
+### Delta Queries
+
+Microsoft Graph delta queries let you track changes to a resource over time without fetching the entire collection on every run. The pattern is:
+
+1. **Initial sync** — call the `/delta` endpoint to get all items plus a `@odata.deltaLink` at the end.
+2. **Incremental syncs** — pass the saved deltaLink as `-RequestUri` to get only the items that changed (added, updated, or deleted) since the previous sync.
+
+`Get-GraphData` handles pagination for both phases automatically. Use `-ResponseMetadataVariable` to capture the `DeltaLink` from the final page.
+
+#### Initial sync
+
+```powershell
+# Full sync — retrieve all users and save the deltaLink for future incremental syncs
+$users = Get-GraphData -RequestUri '/users/delta' `
+    -WithSelect 'id,displayName,userPrincipalName,accountEnabled' `
+    -ResponseMetadataVariable 'meta'
+
+# Persist the deltaLink (e.g. to a file or database) for the next run
+$meta.DeltaLink | Set-Content -Path '.\users-deltalink.txt'
+
+Write-Host "Synced $($users.Count) users. DeltaLink saved."
+```
+
+#### Incremental sync
+
+```powershell
+# Load the deltaLink saved from the previous run
+$deltaLink = Get-Content -Path '.\users-deltalink.txt' -Raw
+
+# Fetch only changes since the last sync
+$changes = Get-GraphData -RequestUri $deltaLink -ResponseMetadataVariable 'meta'
+
+# Items with '@removed' were deleted; all others were added or updated
+$deleted  = $changes | Where-Object { $_.'@removed' }
+$modified = $changes | Where-Object { -not $_.'@removed' }
+
+Write-Host "$($modified.Count) added/updated, $($deleted.Count) deleted."
+
+# Always overwrite the saved deltaLink with the latest one
+$meta.DeltaLink | Set-Content -Path '.\users-deltalink.txt'
+```
+
+#### Notes on delta queries
+
+- The deltaLink is returned in `$meta.DeltaLink` only on the **final page** (when `@odata.nextLink` is absent). If pagination is still in progress, `DeltaLink` is `$null`.
+- Delta query URLs already encode the selected properties and filter from the initial call — do not add query options when using a deltaLink as `-RequestUri`.
+- Deleted items include an `@removed` property with a `reason` field (`changed` or `deleted`).
+- Delta queries are available for most Entra ID resources (users, groups, directoryObjects, etc.). Refer to the [Microsoft Graph delta query documentation](https://learn.microsoft.com/graph/delta-query-overview) for the full list.
+- The deltaLink token typically remains valid for up to 30 days. If it expires, start a new initial sync.
 
 ---
 
