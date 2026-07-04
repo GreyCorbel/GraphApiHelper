@@ -23,6 +23,10 @@ function Add-GraphReference
     .PARAMETER PermissiveModify
     Suppresses errors when the reference already exists.
 
+    .PARAMETER AuthorizationHeader
+    Optional pre-obtained authorization header hashtable (e.g. from Get-GraphAuthorizationHeader).
+    When provided, token acquisition is skipped and this header is used directly.
+
     .INPUTS
     System.String
     Accepts MemberId values from the pipeline.

@@ -52,6 +52,15 @@ function Get-GraphData
     .PARAMETER NoContinue
     When specified, retrieves only the first page and does not follow @odata.nextLink.
 
+    .PARAMETER AuthorizationHeader
+    Optional pre-obtained authorization header hashtable (e.g. from Get-GraphAuthorizationHeader).
+    When provided, token acquisition is skipped and this header is used directly.
+    Useful for reusing a token across multiple calls or for testing.
+
+    .PARAMETER ResponseMetadataVariable
+    Name of a variable in the caller's scope that receives Graph response metadata
+    (such as @odata.count) from the last page returned.
+
     .INPUTS
     None
     This command does not accept pipeline input.
@@ -126,7 +135,9 @@ function Get-GraphData
         [Parameter()]
         [switch]$NoContinue,
         [Parameter()]
-        [hashtable]$AuthorizationHeader
+        [hashtable]$AuthorizationHeader,
+        [Parameter()]
+        [string]$ResponseMetadataVariable
     )
 
     process
@@ -164,6 +175,11 @@ function Get-GraphData
             if([string]::IsNullOrEmpty($uri) -or $NoContinue)
             {
                 #no more pages or we just wanted first page
+                if(-not [string]::IsNullOrEmpty($ResponseMetadataVariable) -and $null -ne $result)
+                {
+                    $metadata = Get-GraphResponseMetadata -Response $result
+                    $PSCmdlet.SessionState.PSVariable.Set( $ResponseMetadataVariable, $metadata )
+                }
                 break;
             }
         }

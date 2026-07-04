@@ -25,6 +25,7 @@ Executes a Microsoft Graph GET request and **automatically follows `@odata.nextL
 | `AdditionalHeaders` | `Hashtable` | No | Extra headers added to every request in the chain. |
 | `NoContinue` | `Switch` | No | Stop after the first page; do not follow `@odata.nextLink`. |
 | `ResponseMetadataVariable` | `String` | No | Variable name to store metadata (`@odata.count`, etc.) from the last page. |
+| `AuthorizationHeader` | `Hashtable` | No | Pre-obtained authorization header (e.g. from `Get-GraphAuthorizationHeader`). When provided, token acquisition is skipped. Useful for reusing a token across many calls. |
 
 ### Examples
 
@@ -97,6 +98,7 @@ Sends a single Microsoft Graph request with **built-in retry logic** for throttl
 | `MaxRetries` | `Int` | No | Maximum retry attempts before giving up. Default: `100`. |
 | `DefaultBackOffSeconds` | `Int` | No | Fallback wait time (seconds) when `Retry-After` is absent. Default: `1`. |
 | `OperationName` | `String` | No | Name logged to Application Insights. Default: `Invoke-GraphWithRetry`. |
+| `AuthorizationHeader` | `Hashtable` | No | Pre-obtained authorization header (e.g. from `Get-GraphAuthorizationHeader`). When provided, token acquisition is skipped. Useful for reusing a token across many calls. |
 
 ### Examples
 
@@ -154,7 +156,9 @@ Returns a hashtable containing the `Authorization: Bearer <token>` header for us
 
 ### Parameters
 
-None.
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `FactoryName` | `String` | No | Factory name override for token acquisition. When omitted, uses the factory configured by `Set-GraphAadFactory`. |
 
 ### Examples
 
@@ -168,6 +172,11 @@ Invoke-RestMethod -Uri 'https://graph.microsoft.com/v1.0/me' -Headers $headers
 $headers = Get-GraphAuthorizationHeader
 $headers['ConsistencyLevel'] = 'eventual'
 Invoke-RestMethod -Uri 'https://graph.microsoft.com/v1.0/users?$count=true' -Headers $headers
+```
+
+```powershell
+# Override the factory for a single call
+$headers = Get-GraphAuthorizationHeader -FactoryName 'ManagedIdentityFactory'
 ```
 
 ### Notes

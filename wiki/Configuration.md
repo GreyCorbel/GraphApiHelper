@@ -48,7 +48,7 @@ Sets the OAuth2 scopes used when requesting access tokens.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `Scopes` | `String[]` | **Yes** | One or more OAuth2 scopes. |
+| `Scopes` | `String[]` | No | One or more OAuth2 scopes. Default: `'https://graph.microsoft.com/.default'`. |
 
 ### Examples
 

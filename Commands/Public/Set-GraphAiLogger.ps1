@@ -19,8 +19,8 @@ function Set-GraphAiLogger
     This command updates module configuration and does not return an object.
     
     .EXAMPLE
-    $aiLogger = New-AiLogger -InstrumentationKey 'your-instrumentation-key'
-    Set-GraphAiLogger -Logger $aiLogger
+    $logger = Connect-AiLogger -ConnectionString 'InstrumentationKey=...'
+    Set-GraphAiLogger -Logger $logger
     
     Configures the module to use the specified Application Insights logger for telemetry.
 

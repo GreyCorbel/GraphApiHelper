@@ -76,6 +76,7 @@ Collects batch subrequests, sends them to the `/$batch` endpoint, and returns th
 | `RetryableErrorCodes` | `Int[]` | No | HTTP status codes on the outer batch call to retry. Default: `429`. |
 | `RequestHeaders` | `Hashtable` | No | Headers for the outer `/$batch` HTTP request. |
 | `OperationName` | `String` | No | Name logged to Application Insights. Default: `Invoke-GraphBatch`. |
+| `AuthorizationHeader` | `Hashtable` | No | Pre-obtained authorization header (e.g. from `Get-GraphAuthorizationHeader`). When provided, token acquisition is skipped. Useful for reusing a token across many calls. |
 
 ### Outputs
 

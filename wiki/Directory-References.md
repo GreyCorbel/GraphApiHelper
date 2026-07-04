@@ -17,6 +17,7 @@ Adds a member or owner reference to a Graph directory object.
 | `objectType` | `String` | No | The Graph object type: `groups`, `applications`, `servicePrincipals`. Default: `groups`. |
 | `ReferenceType` | `String` | No | The collection to add to: `members` or `owners`. Default: `members`. |
 | `PermissiveModify` | `Switch` | No | Suppress the error when the reference already exists. |
+| `AuthorizationHeader` | `Hashtable` | No | Pre-obtained authorization header. When provided, token acquisition is skipped. |
 
 ### Outputs
 
@@ -60,6 +61,7 @@ Removes a member or owner reference from a Graph directory object.
 | `objectType` | `String` | No | The Graph object type: `groups`, `applications`, `servicePrincipals`. Default: `groups`. |
 | `ReferenceType` | `String` | No | The collection to remove from: `members` or `owners`. Default: `members`. |
 | `PermissiveModify` | `Switch` | No | Suppress the error when the reference does not exist (HTTP 404). |
+| `AuthorizationHeader` | `Hashtable` | No | Pre-obtained authorization header. When provided, token acquisition is skipped. |
 
 ### Outputs
 

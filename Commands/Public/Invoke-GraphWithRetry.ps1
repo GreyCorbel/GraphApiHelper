@@ -42,6 +42,11 @@ function Invoke-GraphWithRetry
     .PARAMETER DefaultBackOffSeconds
     Fallback delay in seconds used when the response does not include Retry-After.
 
+    .PARAMETER AuthorizationHeader
+    Optional pre-obtained authorization header hashtable (e.g. from Get-GraphAuthorizationHeader).
+    When provided, token acquisition is skipped and this header is used directly.
+    Useful for reusing a token across multiple calls or for testing.
+
     .INPUTS
     None
     This command does not accept pipeline input.

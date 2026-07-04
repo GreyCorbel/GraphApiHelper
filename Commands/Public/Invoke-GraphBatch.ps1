@@ -22,6 +22,11 @@ function Invoke-GraphBatch
     .PARAMETER OperationName
     The operation name to use for Application Insights logging. Default is 'Invoke-GraphBatch'.
 
+    .PARAMETER AuthorizationHeader
+    Optional pre-obtained authorization header hashtable (e.g. from Get-GraphAuthorizationHeader).
+    When provided, token acquisition is skipped and this header is used directly.
+    Useful for reusing a token across multiple calls or for testing.
+
     .OUTPUTS
     System.Object[]
     Returns response items from the Graph batch response.
