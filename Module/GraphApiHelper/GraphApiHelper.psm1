@@ -40,7 +40,7 @@ function Add-GraphLargeFile
     .NOTES
     - Uses 5MB chunks for optimal performance
     - Automatically handles upload session creation
-    - Uses conflict behavior 'replace' so existing files are overwritten
+    - Uses conflict behavior specified by the -ConflictBehavior parameter
     - Uses Invoke-GraphWithRetry internally for reliability
     - Enable -Verbose to see detailed upload progress
     - Uses the authentication factory configured via Set-GraphAadFactory
@@ -53,7 +53,10 @@ function Add-GraphLargeFile
         [Parameter(Mandatory)]
         $LocalFilePath,
         [Parameter(Mandatory)]
-        $GraphFilePath
+        $GraphFilePath,
+        [Parameter()]
+        [ValidateSet('replace', 'rename', 'fail')]
+        [string]$ConflictBehavior = 'replace'
     )
 
     begin
@@ -71,7 +74,7 @@ function Add-GraphLargeFile
             Write-Verbose "Chunksize: $chunkSize"
             $payload =  @{
                 item = @{
-                    '@microsoft.graph.conflictBehavior' = 'replace' 
+                    '@microsoft.graph.conflictBehavior' = $ConflictBehavior
                 }
             }
             Write-Verbose "Requesting upload session on $graphUri`:/createUploadSession"
@@ -155,6 +158,10 @@ function Add-GraphReference
 
     .PARAMETER PermissiveModify
     Suppresses errors when the reference already exists.
+
+    .PARAMETER AuthorizationHeader
+    Optional pre-obtained authorization header hashtable (e.g. from Get-GraphAuthorizationHeader).
+    When provided, token acquisition is skipped and this header is used directly.
 
     .INPUTS
     System.String
@@ -379,6 +386,15 @@ function Get-GraphData
     .PARAMETER NoContinue
     When specified, retrieves only the first page and does not follow @odata.nextLink.
 
+    .PARAMETER AuthorizationHeader
+    Optional pre-obtained authorization header hashtable (e.g. from Get-GraphAuthorizationHeader).
+    When provided, token acquisition is skipped and this header is used directly.
+    Useful for reusing a token across multiple calls or for testing.
+
+    .PARAMETER ResponseMetadataVariable
+    Name of a variable in the caller's scope that receives Graph response metadata
+    (such as @odata.count) from the last page returned.
+
     .INPUTS
     None
     This command does not accept pipeline input.
@@ -416,9 +432,34 @@ function Get-GraphData
     Get-GraphData -RequestUri 'https://graph.microsoft.com/v1.0/users' -RetryableErrorCodes 429,503
 
     Retrieves users while treating 429 and 503 responses as retryable transient failures.
+
+    .EXAMPLE
+    # Initial delta sync — retrieve all users and capture the deltaLink for future incremental syncs
+    $users = Get-GraphData -RequestUri '/users/delta' `
+        -WithSelect 'id,displayName,userPrincipalName,accountEnabled' `
+        -ResponseMetadataVariable 'meta'
+
+    # Persist the deltaLink so the next run can request only changes
+    $meta.DeltaLink | Set-Content -Path '.\users-deltalink.txt'
+
+    .EXAMPLE
+    # Incremental delta sync — retrieve only changes since the last sync
+    $deltaLink = Get-Content -Path '.\users-deltalink.txt' -Raw
+
+    $changes = Get-GraphData -RequestUri $deltaLink -ResponseMetadataVariable 'meta'
+
+    # Process changes: items with '@removed' were deleted, others were added or updated
+    $deleted = $changes | Where-Object { $_.'@removed' }
+    $modified = $changes | Where-Object { -not $_.'@removed' }
+
+    # Save updated deltaLink for the next run
+    $meta.DeltaLink | Set-Content -Path '.\users-deltalink.txt'
     
     .NOTES
     - Automatically handles pagination via @odata.nextLink
+    - Supports Microsoft Graph delta queries: call a /delta endpoint and use -ResponseMetadataVariable
+      to capture the @odata.deltaLink returned on the final page; pass the deltaLink as -RequestUri
+      on subsequent calls to retrieve only changes since the last sync
     - Uses Invoke-GraphWithRetry internally for throttling protection
     - Suitable for large datasets that span multiple pages
     - Uses the authentication factory configured via Set-GraphAadFactory
@@ -579,6 +620,11 @@ function Invoke-GraphBatch
 
     .PARAMETER OperationName
     The operation name to use for Application Insights logging. Default is 'Invoke-GraphBatch'.
+
+    .PARAMETER AuthorizationHeader
+    Optional pre-obtained authorization header hashtable (e.g. from Get-GraphAuthorizationHeader).
+    When provided, token acquisition is skipped and this header is used directly.
+    Useful for reusing a token across multiple calls or for testing.
 
     .OUTPUTS
     System.Object[]
@@ -794,6 +840,11 @@ function Invoke-GraphWithRetry
 
     .PARAMETER DefaultBackOffSeconds
     Fallback delay in seconds used when the response does not include Retry-After.
+
+    .PARAMETER AuthorizationHeader
+    Optional pre-obtained authorization header hashtable (e.g. from Get-GraphAuthorizationHeader).
+    When provided, token acquisition is skipped and this header is used directly.
+    Useful for reusing a token across multiple calls or for testing.
 
     .INPUTS
     None
@@ -1296,6 +1347,10 @@ function Remove-GraphReference
     .PARAMETER PermissiveModify
     Suppresses errors when the reference does not exist.
 
+    .PARAMETER AuthorizationHeader
+    Optional pre-obtained authorization header hashtable (e.g. from Get-GraphAuthorizationHeader).
+    When provided, token acquisition is skipped and this header is used directly.
+
     .INPUTS
     System.String
     Accepts MemberId values from the pipeline.
@@ -1438,8 +1493,8 @@ function Set-GraphAiLogger
     This command updates module configuration and does not return an object.
     
     .EXAMPLE
-    $aiLogger = New-AiLogger -InstrumentationKey 'your-instrumentation-key'
-    Set-GraphAiLogger -Logger $aiLogger
+    $logger = Connect-AiLogger -ConnectionString 'InstrumentationKey=...'
+    Set-GraphAiLogger -Logger $logger
     
     Configures the module to use the specified Application Insights logger for telemetry.
 
