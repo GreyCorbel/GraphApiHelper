@@ -25,7 +25,7 @@ Executes a Microsoft Graph GET request and **automatically follows `@odata.nextL
 | `AdditionalHeaders` | `Hashtable` | No | Extra headers added to every request in the chain. |
 | `NoContinue` | `Switch` | No | Stop after the first page; do not follow `@odata.nextLink`. |
 | `ResponseMetadataVariable` | `String` | No | Variable name to store metadata (`@odata.count`, etc.) from the last page. |
-| `AuthorizationHeader` | `Hashtable` | No | Pre-obtained authorization header (e.g. from `Get-GraphAuthorizationHeader`). When provided, token acquisition is skipped. Useful for reusing a token across many calls. |
+| `AuthorizationHeader` | `Hashtable` | No | Pre-obtained authorization header (e.g. from `Get-GraphAuthorizationHeader`). When provided, token acquisition is skipped. Useful when need to use access token retrieved by other means than from configured AadAuthenticationFactory instance. |
 
 ### Examples
 
@@ -149,7 +149,7 @@ Sends a single Microsoft Graph request with **built-in retry logic** for throttl
 | `MaxRetries` | `Int` | No | Maximum retry attempts before giving up. Default: `100`. |
 | `DefaultBackOffSeconds` | `Int` | No | Fallback wait time (seconds) when `Retry-After` is absent. Default: `1`. |
 | `OperationName` | `String` | No | Name logged to Application Insights. Default: `Invoke-GraphWithRetry`. |
-| `AuthorizationHeader` | `Hashtable` | No | Pre-obtained authorization header (e.g. from `Get-GraphAuthorizationHeader`). When provided, token acquisition is skipped. Useful for reusing a token across many calls. |
+| `AuthorizationHeader` | `Hashtable` | No | Pre-obtained authorization header (e.g. from `Get-GraphAuthorizationHeader`). When provided, token acquisition is skipped. Useful when need to use access token retrieved by other means than from configured AadAuthenticationFactory instance. |
 
 ### Examples
 
