@@ -21,8 +21,15 @@ jobs:
           git config --global user.name  "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Clone the wiki repo
-          git clone "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git" wiki-repo
+          WIKI_URL="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git"
+
+          # Clone the wiki repo; fail with a helpful message if not yet initialized
+          if ! git clone "$WIKI_URL" wiki-repo 2>/dev/null; then
+            echo ""
+            echo "::error::GitHub wiki is not yet initialized."
+            echo "::notice::To initialize: go to https://github.com/${{ github.repository }}/wiki and click 'Create the first page', save any placeholder, then re-run this workflow."
+            exit 1
+          fi
 
           # Sync all pages (overwrite existing, add new)
           cp -v wiki/*.md wiki-repo/
