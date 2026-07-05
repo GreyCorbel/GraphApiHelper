@@ -156,6 +156,7 @@ function Get-GraphData
         [Parameter()]
         [string]$OperationName = 'Get-GraphData',
         [Parameter()]
+        [Alias('Headers')]
         [System.Collections.Hashtable]$AdditionalHeaders = @{},
         [Parameter()]
         [switch]$NoContinue,

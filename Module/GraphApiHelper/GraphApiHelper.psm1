@@ -490,6 +490,7 @@ function Get-GraphData
         [Parameter()]
         [string]$OperationName = 'Get-GraphData',
         [Parameter()]
+        [Alias('Headers')]
         [System.Collections.Hashtable]$AdditionalHeaders = @{},
         [Parameter()]
         [switch]$NoContinue,
@@ -917,7 +918,7 @@ function Invoke-GraphWithRetry
     }
     process
     {
-        if (-not $PSCmdlet.ShouldProcess($graphUri, "$method Microsoft Graph request"))
+        if (-not $PSCmdlet.ShouldProcess($graphUri, $method))
         {
             return
         }

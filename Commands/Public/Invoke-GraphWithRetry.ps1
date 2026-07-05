@@ -118,7 +118,7 @@ function Invoke-GraphWithRetry
     }
     process
     {
-        if (-not $PSCmdlet.ShouldProcess($graphUri, "$method Microsoft Graph request"))
+        if (-not $PSCmdlet.ShouldProcess($graphUri, $method))
         {
             return
         }
