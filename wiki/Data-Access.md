@@ -24,7 +24,7 @@ Executes a Microsoft Graph GET request and **automatically follows `@odata.nextL
 | `OperationName` | `String` | No | Name logged to Application Insights. Default: `Get-GraphData`. |
 | `AdditionalHeaders` | `Hashtable` | No | Extra headers added to every request in the chain. |
 | `NoContinue` | `Switch` | No | Stop after the first page; do not follow `@odata.nextLink`. |
-| `ResponseMetadataVariable` | `String` | No | Variable name to store metadata (`@odata.count`, etc.) from the last page. |
+| `ResponseMetadataVariable` | `String` | No | Variable name to store metadata (`NextLink`, `DeltaLink`, `@odata.count`, etc.) from the last page. Also populated when the command is interrupted (e.g. Ctrl+C) — `meta.NextLink` will contain the URL to resume from. |
 | `AuthorizationHeader` | `Hashtable` | No | Pre-obtained authorization header (e.g. from `Get-GraphAuthorizationHeader`). When provided, token acquisition is skipped. Useful when need to use access token retrieved by other means than from configured AadAuthenticationFactory instance. |
 
 ### Examples
@@ -66,6 +66,17 @@ Write-Host "Total members: $($meta.Count)"
 ```powershell
 # Retry on throttling AND transient service errors
 $data = Get-GraphData -RequestUri '/users' -RetryableErrorCodes 429, 503
+```
+
+```powershell
+# Resume an interrupted load
+# Start a large load — if Ctrl+C is pressed, $meta.NextLink holds the resume URL
+$users = Get-GraphData -RequestUri '/users' -ResponseMetadataVariable 'meta'
+
+# If interrupted, $meta.NextLink is populated; resume from that URL
+if ($meta.NextLink) {
+    $remaining = Get-GraphData -RequestUri $meta.NextLink -ResponseMetadataVariable 'meta'
+}
 ```
 
 ```powershell
@@ -124,7 +135,7 @@ $meta.DeltaLink | Set-Content -Path '.\users-deltalink.txt'
 
 #### Notes on delta queries
 
-- The deltaLink is returned in `$meta.DeltaLink` only on the **final page** (when `@odata.nextLink` is absent). If pagination is still in progress, `DeltaLink` is `$null`.
+- The deltaLink is returned in `$meta.DeltaLink` only on the **final page** (when `@odata.nextLink` is absent). If pagination is still in progress, `DeltaLink` is `$null` and `NextLink` holds the URL of the next page.
 - Delta query URLs already encode the selected properties and filter from the initial call — do not add query options when using a deltaLink as `-RequestUri`.
 - Deleted items include an `@removed` property with a `reason` field (`changed` or `deleted`).
 - Delta queries are available for most Entra ID resources (users, groups, directoryObjects, etc.). Refer to the [Microsoft Graph delta query documentation](https://learn.microsoft.com/graph/delta-query-overview) for the full list.
