@@ -59,7 +59,10 @@ function Get-GraphData
 
     .PARAMETER ResponseMetadataVariable
     Name of a variable in the caller's scope that receives Graph response metadata
-    (such as @odata.count) from the last page returned.
+    (such as @odata.count, NextLink, DeltaLink) from the last page returned.
+    The variable is also populated when pagination is interrupted (e.g. Ctrl+C),
+    with the NextLink of the page that was being fetched, so you can resume the
+    load from that point instead of starting over.
 
     .INPUTS
     None
@@ -175,38 +178,47 @@ function Get-GraphData
             return
         }
 
-        while($true)
+        $result = $null
+        try
         {
-            #get page of results
-            $result = Invoke-GraphWithRetry `
-                -RequestUri $uri `
-                -method Get `
-                -Headers $AdditionalHeaders `
-                -OperationName $OperationName `
-                -Confirm:$false `
-                -ErrorAction $ErrorActionPreference `
-                -RetryableErrorCodes $RetryableErrorCodes `
-                -AuthorizationHeader $AuthorizationHeader
-            if($null -ne $result.value)
+            while($true)
             {
-                #returning array of results
-                $result.value
-            }
-            else
-            {
-                #returning single object
-                $result
-            }
-            $uri = $result.'@odata.nextLink'
-            if([string]::IsNullOrEmpty($uri) -or $NoContinue)
-            {
-                #no more pages or we just wanted first page
-                if(-not [string]::IsNullOrEmpty($ResponseMetadataVariable) -and $null -ne $result)
+                #get page of results
+                $result = Invoke-GraphWithRetry `
+                    -RequestUri $uri `
+                    -method Get `
+                    -Headers $AdditionalHeaders `
+                    -OperationName $OperationName `
+                    -Confirm:$false `
+                    -ErrorAction $ErrorActionPreference `
+                    -RetryableErrorCodes $RetryableErrorCodes `
+                    -AuthorizationHeader $AuthorizationHeader
+                if($null -ne $result.value)
                 {
-                    $metadata = Get-GraphResponseMetadata -Response $result
-                    $PSCmdlet.SessionState.PSVariable.Set( $ResponseMetadataVariable, $metadata )
+                    #returning array of results
+                    $result.value
                 }
-                break;
+                else
+                {
+                    #returning single object
+                    $result
+                }
+                $uri = $result.'@odata.nextLink'
+                if([string]::IsNullOrEmpty($uri) -or $NoContinue)
+                {
+                    break;
+                }
+            }
+        }
+        finally
+        {
+            #runs on normal completion and on interruption (Ctrl+C);
+            #if interrupted mid-pagination, $result still holds the last fetched page
+            #whose NextLink lets the caller resume from the failure point
+            if(-not [string]::IsNullOrEmpty($ResponseMetadataVariable) -and $null -ne $result)
+            {
+                $metadata = Get-GraphResponseMetadata -Response $result
+                $PSCmdlet.SessionState.PSVariable.Set( $ResponseMetadataVariable, $metadata )
             }
         }
     }
