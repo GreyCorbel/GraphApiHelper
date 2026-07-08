@@ -1,6 +1,6 @@
 @{
     RootModule = 'GraphApiHelper.psm1'
-    ModuleVersion = '1.0.11'
+    ModuleVersion = '1.0.12'
     GUID = 'f7f4d1f4-1b1b-4b1b-8b1b-1b1b1b1b1b1b'
     Author = 'Jiri Formacek'
     CompanyName = 'GreyCorbel Solutions'
@@ -18,7 +18,7 @@
             Tags = @('Microsoft', 'Graph', 'Office365')
             LicenseUri = 'https://github.com/GreyCorbel/GraphApiHelper/blob/main/LICENSE'
             ProjectUri = 'https://github.com/GreyCorbel/GraphApiHelper'
-            ReleaseNotes = 'Version 1.0.11'
+            ReleaseNotes = 'Version 1.0.12 - Added support for keeping the response metadata in a variable when Get-GraphData interrupted'
             ExternalModuleDependencies = @('AadAuthenticationFactory')
             # Prerelease = ''
         }
