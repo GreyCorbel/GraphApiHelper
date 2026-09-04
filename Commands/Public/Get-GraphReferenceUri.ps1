@@ -39,7 +39,9 @@ function Get-GraphReferenceUri
     (
         [Parameter(Mandatory)]
         [Alias('Id')]
-        [string]$ObjectId
+        [string]$ObjectId,
+        [Parameter()]
+        [string]$ObjectType = 'directoryObjects'
     )
 
     begin
@@ -48,6 +50,6 @@ function Get-GraphReferenceUri
         {
             throw "Graph connection not initialized. Please call Connect-Graph first."
         }
-        $script:graphConnection.GetReference($ObjectId)
+        $script:graphConnection.GetReference($ObjectId, $objectType)
     }
 }
