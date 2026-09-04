@@ -54,9 +54,9 @@ class GraphConnection {
     System.String
     The fully-qualified reference URI for the provided object id.
     #>
-    [string] GetReference([string]$id)
+    [string] GetReference([string]$id, [string]$objectType = 'directoryObjects')
     {
-        $ref = "$($this.BaseUri.Scheme)://$($this.BaseUri.Host)/v1.0/directoryObjects/$id"
+        $ref = "$($this.BaseUri.Scheme)://$($this.BaseUri.Host)/v1.0/$objectType/$id"
         Write-Verbose "Constructed reference URI: $ref"
         return $ref
     }
