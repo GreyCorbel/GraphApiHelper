@@ -16,6 +16,7 @@ Quick-reference table of all commands exported by the `GraphApiHelper` module.
 | [`New-GraphUri`](URL-Building#new-graphuri) | URL Building | Builds an absolute or relative Graph URL with OData query options. |
 | [`New-GraphBatchRequest`](Batch-Requests#new-graphbatchrequest) | Batch | Creates a subrequest object for a Graph `/$batch` payload. |
 | [`Invoke-GraphBatch`](Batch-Requests#invoke-graphbatch) | Batch | Sends up to 20 subrequests in a single `/$batch` call. |
+| [`Invoke-GraphSearchQuery`](Search#invoke-graphsearchquery) | Search | Queries `/search/query` for a single entity type with automatic from/size result paging. |
 | [`Add-GraphReference`](Directory-References#add-graphreference) | Directory | Adds a member or owner `$ref` link to a group, application, or service principal. |
 | [`Remove-GraphReference`](Directory-References#remove-graphreference) | Directory | Removes a member or owner `$ref` link. |
 | [`Get-GraphReferenceUri`](Directory-References#get-graphreferenceuri) | Directory | Builds a `directoryObjects` reference URI from an object ID. |

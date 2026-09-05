@@ -84,6 +84,7 @@ This module currently exports:
 - Get-GraphData
 - Get-GraphReferenceUri
 - Invoke-GraphBatch
+- Invoke-GraphSearchQuery
 - Invoke-GraphWithRetry
 - New-GraphBatchRequest
 - New-GraphUri
@@ -233,6 +234,21 @@ $responses | Select-Object id, status
 
 # Retry outer batch call on throttling and transient service errors
 $responses = Invoke-GraphBatch -BatchRequest $requests -RetryableErrorCodes 429,503
+```
+
+### Invoke-GraphSearchQuery
+
+Queries the Microsoft Graph Search API (/search/query) for a single entity type, automatically paging through results using the from/size offset model (Search does not use @odata.nextLink).
+
+- EntityType: list, listItem, site, drive, driveItem, message, event, person, chatMessage, externalItem, acronym, bookmark, qna
+- Supports -Fields, -SortProperties, -ContentSources (externalItem), -Region (application permissions)
+- Supports -ResponseMetadataVariable to capture Total/MoreResultsAvailable/NextFrom for resuming
+- Supports -WhatIf and -Confirm
+
+```powershell
+$hits = Invoke-GraphSearchQuery -EntityType message -QueryString 'subject:invoice'
+
+$hits = Invoke-GraphSearchQuery -EntityType driveItem -QueryString 'quarterly report' -Fields 'name','webUrl' -Size 50
 ```
 
 ### Add-GraphReference / Remove-GraphReference
