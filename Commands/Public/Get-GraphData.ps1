@@ -179,6 +179,7 @@ function Get-GraphData
         }
 
         $result = $null
+        $lastSuccessfulResult = $null
         try
         {
             while($true)
@@ -193,6 +194,12 @@ function Get-GraphData
                     -ErrorAction $ErrorActionPreference `
                     -RetryableErrorCodes $RetryableErrorCodes `
                     -AuthorizationHeader $AuthorizationHeader
+                if($null -eq $result)
+                {
+                    #non-terminating error already reported by Invoke-GraphWithRetry; stop paginating
+                    break;
+                }
+                $lastSuccessfulResult = $result
                 if($null -ne $result.value)
                 {
                     #returning array of results
@@ -213,11 +220,12 @@ function Get-GraphData
         finally
         {
             #runs on normal completion and on interruption (Ctrl+C);
-            #if interrupted mid-pagination, $result still holds the last fetched page
-            #whose NextLink lets the caller resume from the failure point
-            if(-not [string]::IsNullOrEmpty($ResponseMetadataVariable) -and $null -ne $result)
+            #if interrupted mid-pagination, or if a later page fetch failed non-terminally,
+            #$lastSuccessfulResult still holds the last successfully fetched page whose
+            #NextLink lets the caller resume from the failure point
+            if(-not [string]::IsNullOrEmpty($ResponseMetadataVariable) -and $null -ne $lastSuccessfulResult)
             {
-                $metadata = Get-GraphResponseMetadata -Response $result
+                $metadata = Get-GraphResponseMetadata -Response $lastSuccessfulResult
                 $PSCmdlet.SessionState.PSVariable.Set( $ResponseMetadataVariable, $metadata )
             }
         }
