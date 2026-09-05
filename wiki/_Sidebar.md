@@ -10,6 +10,7 @@
 - [[Data Access]]
 - [[URL Building]]
 - [[Batch Requests]]
+- [[Search]]
 
 **Directory Objects**
 - [[Directory References]]

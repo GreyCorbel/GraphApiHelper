@@ -85,6 +85,7 @@ Invoke-GraphWithRetry -RequestUri '/groups' -Method Post -Body $body
 | [Data Access](Data-Access) | Get-GraphData, Invoke-GraphWithRetry, Get-GraphAuthorizationHeader |
 | [URL Building](URL-Building) | New-GraphUri |
 | [Batch Requests](Batch-Requests) | New-GraphBatchRequest, Invoke-GraphBatch |
+| [Search](Search) | Invoke-GraphSearchQuery |
 | [Directory References](Directory-References) | Add-GraphReference, Remove-GraphReference, Get-GraphReferenceUri |
 | [File Upload](File-Upload) | Add-GraphLargeFile |
 | [Error Handling](Error-Handling) | ConvertFrom-GraphErrorRecord |
